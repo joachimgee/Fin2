@@ -111,7 +111,9 @@ Never inferred from env/branch names, never a CLI flag: one accidental
 
 ## 6. Build order (phases)
 
-Each phase is testable in isolation before the next exists:
+Each phase is testable in isolation before the next exists. Detailed
+per-phase specs (files, tests, gates) live in `docs/plan/` — start from
+`docs/plan/CODING_PLAN.md`:
 
 0. `shared/` config loader + exceptions, conftest fixtures
 1. `data/` — models, validation, DuckDB storage, Polygon sync

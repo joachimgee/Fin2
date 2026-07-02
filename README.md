@@ -6,9 +6,10 @@ Broker: Alpaca Markets (**paper by default**). Backtest data: Polygon.io via Duc
 ## Status
 
 Architecture scaffold. All module contracts (interfaces, dataclasses, pipelines)
-are defined with signatures and invariants; implementations follow the phase
-order in [ARCHITECTURE.md](ARCHITECTURE.md) §6. The dependency graph is already
-enforced by `tests/test_architecture.py`.
+are defined with signatures and invariants; implementations follow the
+phase-by-phase guide in [docs/plan/CODING_PLAN.md](docs/plan/CODING_PLAN.md)
+(one phase per session, gated). The dependency graph is already enforced by
+`tests/test_architecture.py`.
 
 ## Setup
 
