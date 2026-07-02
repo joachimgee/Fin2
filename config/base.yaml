@@ -1,0 +1,42 @@
+# Single source of ALL numeric parameters. Nothing numeric lives in src/.
+# Credentials never appear here — env vars only (see .env.example).
+
+execution:
+  live_mode: false        # the ONLY switch for paper=False in the entire codebase
+  broker: alpaca
+
+data:
+  data_source: polygon    # never yfinance for backtests (survivorship bias)
+  db_path: data/trading.duckdb
+  timeframe: "1Day"
+
+risk:
+  kelly_fraction: 0.25            # quarter-Kelly default; hard cap 0.50 enforced in code
+  max_risk_per_trade_pct: 0.02    # step 3 — reduce, don't reject
+  max_position_pct: 0.10          # step 4 — reduce, don't reject
+  max_total_exposure_pct: 0.80    # step 5 — reject on breach
+  max_sector_exposure_pct: 0.25   # step 6 — reject on breach
+  max_correlation: 0.80           # step 7 — reject on breach
+  circuit_breakers:
+    daily_loss_pct: 0.03
+    max_drawdown_pct: 0.15
+    consecutive_losses: 5
+
+wfo:                              # go/no-go gates before any paper trading
+  min_windows: 5
+  min_wfe: 0.50
+  min_oos_trades: 200
+  min_oos_sharpe: 1.5
+  max_oos_drawdown_pct: 0.20
+
+stream:
+  reconnect_backoff_initial_s: 1.0
+  reconnect_backoff_cap_s: 60.0
+
+llm:
+  model: claude-sonnet-4-6
+  cache_ttl_s: 86400
+
+monitoring:
+  log_level: INFO
+  daily_report_time_et: "16:05"

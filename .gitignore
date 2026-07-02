@@ -1,0 +1,28 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data & artifacts (binary, regenerable — never versioned)
+data/*.duckdb
+data/ticks/
+models/
+backtest_results/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
