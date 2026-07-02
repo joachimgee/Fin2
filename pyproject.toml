@@ -28,6 +28,8 @@ dev = [
     "ruff>=0.5",
     "mypy>=1.10",
     "pre-commit>=3.7",
+    "pandas-ta>=0.3",     # reference cross-check for ported indicators (tests only)
+    "quantstats>=0.0.62", # reference cross-check for backtest metrics (tests only)
 ]
 backtest = [
     "quantstats>=0.0.62",

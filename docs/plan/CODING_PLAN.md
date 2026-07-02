@@ -73,6 +73,33 @@ moved to YAML, and the dependency graph applied. Never copy a file wholesale.
 Global v1 exclusions: `yfinance` in the production signal path
 (`scheduler/signal_generator.py`), committed `.env`, vendored `ressources/`.
 
+### Port protocol — MANDATORY for any v1-derived code
+
+Nothing from v1 enters this codebase without passing all seven steps. "It
+worked in v1" is not evidence — v1's backtests ran on unshifted features.
+
+1. **Re-derive, don't copy.** Read the v1 implementation, then write the v2
+   version from the formula/definition. Compare afterwards. Copy-paste
+   imports v1's bugs invisibly.
+2. **Cross-check the math twice**: (a) a hand-computed fixture in the test
+   (≤ 10 rows, expected values derived manually in a comment), and
+   (b) where a reference implementation exists, assert agreement on the same
+   input within tolerance — `pandas-ta`/`ta-lib` for indicators,
+   `empyrical`/`quantstats` for performance metrics (dev-dependency only).
+3. **Lookahead pass**: every ported feature column ends `.shift(1)` with a
+   `# lookahead-safe:` comment, and the truncation-invariance test must
+   cover the new columns (parametrize it over ALL feature columns, not a
+   hardcoded list).
+4. **No silent numerics**: v1 replaces NaN/Inf with 0.0 — forbidden here.
+   Warmup NaN stays NaN; unexpected NaN/Inf raises `DataValidationError`.
+5. **Purity**: no mutation of input DataFrames (v1's `compute_features`
+   mutates its `bars` argument); add an input-unchanged assertion to the test.
+6. **Params to YAML**: every window/threshold/constant extracted to
+   `config/base.yaml` and registered in `_SCHEMA`.
+7. **Provenance in the commit message**: which v1 file/lines inspired the
+   port and what was changed (e.g. "ported RSI from v1 feature_engine.py:
+   added shift(1), NaN policy, config window").
+
 ## Reference
 
 - `ARCHITECTURE.md` — system diagram, ADR-001…007, control gates

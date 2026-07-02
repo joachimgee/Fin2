@@ -73,9 +73,21 @@ numeric params → YAML, never literals in `features.py`.
 `tests/test_features.py`:
 - `test_no_lookahead_truncation_invariance` — **the critical test**: compute on
   full df, then on `df.iloc[:t]` for several t; feature rows at t−1 must be
-  identical. Any feature reading the future fails this.
-- `test_warmup_rows_nan`, `test_column_order_stable`, `test_input_not_mutated`,
+  identical. Any feature reading the future fails this. Parametrized over
+  ALL feature columns (read them from the output, never a hardcoded list) —
+  so every future ported indicator is covered automatically.
+- `test_indicator_values_match_hand_computed` — ≤ 10-row fixture with expected
+  RSI/SMA values derived by hand in a comment (port protocol step 2a).
+- `test_indicator_values_match_reference_library` — same input through
+  `pandas-ta` (dev dependency), agreement within tolerance before the shift
+  (port protocol step 2b).
+- `test_warmup_rows_nan`, `test_unexpected_nan_raises` (NaN mid-series →
+  `DataValidationError`, never silently filled),
+  `test_column_order_stable`, `test_input_not_mutated`,
   `test_windows_come_from_config` (change config → output changes).
+
+Any indicator ported from v1 `feature_engine.py` follows the port protocol
+in CODING_PLAN.md — all seven steps, no exceptions.
 
 `tests/test_lgbm_signal.py` (build tiny real artifacts in a tmp fixture):
 `test_missing_artifact_fails_fast`, `test_generate_in_minus1_plus1`,

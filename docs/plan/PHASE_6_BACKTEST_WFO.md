@@ -60,7 +60,10 @@ equity series. Metrics helpers are pure functions in this module.
 `test_slippage_and_commission_applied`, `test_rejected_intent_never_fills`,
 `test_fill_event_shape_matches_live_contract`,
 `test_same_strategy_instance_reusable_after_reset`,
-`test_equity_curve_matches_hand_computed_two_trade_case`.
+`test_equity_curve_matches_hand_computed_two_trade_case`,
+`test_metrics_match_reference_library` — sharpe/max_drawdown/profit_factor on
+a fixed returns series vs `empyrical`/`quantstats` within tolerance (port
+protocol step 2b — metric formulas come from v1 `backtest/metrics.py`).
 
 `tests/test_wfo.py`: `test_windows_are_temporal_no_overlap`,
 `test_optimization_never_sees_oos` (spy on data passed to the objective),
