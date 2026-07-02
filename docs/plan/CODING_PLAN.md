@@ -55,6 +55,24 @@ earlier phases, so every phase is testable the moment it is written.
 | I | `AbstractStrategy` = `on_bar, on_trade_update, is_ready, universe, reset` — nothing else is ever added |
 | D | All concrete classes are constructed ONLY in the composition root (Phase 8) and injected: broker via `AbstractBrokerClient`, generators via `SignalGenerator` Protocol, alert dispatch via callback |
 
+## Fin v1 harvest map (github.com/joachimgee/fin — reference quarry, not a base)
+
+Fin v1 contains ~20k lines of working domain logic. Port the pieces below
+through this project's gates — every port gets `.shift(1)` discipline, params
+moved to YAML, and the dependency graph applied. Never copy a file wholesale.
+
+| Phase | Consult in v1 | Take | Leave behind |
+|---|---|---|---|
+| 1 | `data/alpaca_ingestion.py` | retry/validation edge cases | Alpaca as backtest data source (v2 = Polygon, ADR-004) |
+| 2 | `data/feature_engine.py`, `models/tabular.py`, `models/cv.py`, `models/calibration.py`, `monitoring/regime_detection.py` | 30+ indicator formulas, LightGBM training patterns, calibration | **unshifted features** (v1 computes feature[t] from close[t] — lookahead by v2 rules), NaN→0.0 silent fills, input mutation |
+| 3 | `models/risk.py`, `alpaca/risk_monitor.py`, `docs/RISK_PARAMETERS_RESEARCH.md` | parameter research, monitoring ideas | v1 has NO order gatekeeper (`validate_order` checks format only; `risk/` package is empty) — the v2 pipeline is not in v1 |
+| 4 | `execution/alpaca_executor.py`, `reliability/__init__.py` | order-request building, API error taxonomy, call-level circuit breaker/retry patterns | three parallel executor implementations — pick patterns, not structure |
+| 6 | `backtest/engine.py`, `backtest/metrics.py`, `backtest/monte_carlo.py`, `models/walkforward.py`, `docs/WALK_FORWARD_*.md` | metric formulas, Monte Carlo robustness checks, WFO window logic | any historical performance claims (produced with unshifted features) |
+| 7 | `monitoring/trade_logger.py`, `paper_trading_monitor.py`, `drift_monitor.py` | drift detection, trade logging schema | — |
+
+Global v1 exclusions: `yfinance` in the production signal path
+(`scheduler/signal_generator.py`), committed `.env`, vendored `ressources/`.
+
 ## Reference
 
 - `ARCHITECTURE.md` — system diagram, ADR-001…007, control gates
