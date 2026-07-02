@@ -5,8 +5,8 @@ install:
 	pre-commit install
 
 lint:
-	python3 -m ruff check src tests
-	python3 -m ruff format --check src tests
+	python3 -m ruff check src tests scripts
+	python3 -m ruff format --check src tests scripts
 
 typecheck:
 	python3 -m mypy

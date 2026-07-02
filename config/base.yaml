@@ -29,6 +29,39 @@ wfo:                              # go/no-go gates before any paper trading
   min_oos_sharpe: 1.5
   max_oos_drawdown_pct: 0.20
 
+signals:
+  features:            # every window/threshold used by src/signals/features.py
+    ret_windows: [1, 5, 20]
+    vol_short_window: 20
+    vol_long_window: 60
+    parkinson_window: 20
+    gk_window: 20
+    sma_window: 20
+    ema_window: 20
+    ma_fast_window: 10
+    ma_slow_window: 50
+    macd_fast: 12
+    macd_slow: 26
+    macd_signal: 9
+    zscore_window: 20
+    bb_window: 20
+    bb_std: 2.0
+    cci_window: 20
+    rsi_window: 14
+    stoch_window: 14
+    stoch_smooth: 3
+    roc_window: 10
+    mfi_window: 14
+    volume_window: 20
+  training:            # offline training scripts (scripts/train_*.py)
+    label_horizon_bars: 5
+    train_frac: 0.70
+    valid_frac: 0.15
+    n_estimators: 300
+    learning_rate: 0.05
+    num_leaves: 31
+    hmm_states: 3
+
 stream:
   reconnect_backoff_initial_s: 1.0
   reconnect_backoff_cap_s: 60.0

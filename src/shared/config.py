@@ -31,6 +31,7 @@ _SCHEMA: dict[str, set[str]] = {
         "max_correlation",
         "circuit_breakers",
     },
+    "signals": {"features", "training"},
     "wfo": {
         "min_windows",
         "min_wfe",
@@ -43,6 +44,39 @@ _SCHEMA: dict[str, set[str]] = {
     "monitoring": {"log_level", "daily_report_time_et"},
 }
 _CIRCUIT_BREAKER_KEYS: set[str] = {"daily_loss_pct", "max_drawdown_pct", "consecutive_losses"}
+_FEATURE_KEYS: set[str] = {
+    "ret_windows",
+    "vol_short_window",
+    "vol_long_window",
+    "parkinson_window",
+    "gk_window",
+    "sma_window",
+    "ema_window",
+    "ma_fast_window",
+    "ma_slow_window",
+    "macd_fast",
+    "macd_slow",
+    "macd_signal",
+    "zscore_window",
+    "bb_window",
+    "bb_std",
+    "cci_window",
+    "rsi_window",
+    "stoch_window",
+    "stoch_smooth",
+    "roc_window",
+    "mfi_window",
+    "volume_window",
+}
+_TRAINING_KEYS: set[str] = {
+    "label_horizon_bars",
+    "train_frac",
+    "valid_frac",
+    "n_estimators",
+    "learning_rate",
+    "num_leaves",
+    "hmm_states",
+}
 
 # Hard ceilings (src/risk/CLAUDE.md <warn_about>). Values still come from the
 # YAML — these only bound what the YAML may ask for.
@@ -60,6 +94,14 @@ def require_env(name: str) -> str:
     if not value:
         raise ConfigError(f"required environment variable not set: {name}")
     return value
+
+
+def _check_nested(path: Path, where: str, mapping: Any, allowed: set[str]) -> None:
+    if not isinstance(mapping, dict):
+        raise ConfigError(f"{path}: {where} must be a mapping")
+    for key in mapping:
+        if key not in allowed:
+            raise ConfigError(f"{path}: unknown key {where}.{key}")
 
 
 def load_config(path: Path) -> dict[str, Any]:
@@ -88,12 +130,12 @@ def load_config(path: Path) -> dict[str, Any]:
                 raise ConfigError(f"{path}: unknown key {section}.{key}")
 
     risk = raw.get("risk", {})
-    breakers = risk.get("circuit_breakers", {})
-    if not isinstance(breakers, dict):
-        raise ConfigError(f"{path}: risk.circuit_breakers must be a mapping")
-    for key in breakers:
-        if key not in _CIRCUIT_BREAKER_KEYS:
-            raise ConfigError(f"{path}: unknown key risk.circuit_breakers.{key}")
+    _check_nested(
+        path, "risk.circuit_breakers", risk.get("circuit_breakers", {}), _CIRCUIT_BREAKER_KEYS
+    )
+    signals = raw.get("signals", {})
+    _check_nested(path, "signals.features", signals.get("features", {}), _FEATURE_KEYS)
+    _check_nested(path, "signals.training", signals.get("training", {}), _TRAINING_KEYS)
 
     kelly = risk.get("kelly_fraction")
     if kelly is not None and kelly > _MAX_KELLY_FRACTION:
