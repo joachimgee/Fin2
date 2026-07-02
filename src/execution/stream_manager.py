@@ -15,15 +15,15 @@ from __future__ import annotations
 
 class StreamManager:
     """TODO(Phase 4):
-      - run TradingStream (trade_updates) + StockDataStream (bars/quotes).
-      - handle every TradingStream event explicitly, no silent catch-all:
-          "fill"               -> tracker.on_fill + log order_filled
-          "partial_fill"       -> partial update + log WARNING
-          "canceled"|"expired" -> log INFO
-          "new"|"pending_new"  -> log DEBUG
-          "rejected"           -> log ERROR + Telegram alert
-          _                    -> log WARNING unhandled_trade_event
-      - callbacks stay < 5 ms: publish to Redis and return, no blocking logic.
+    - run TradingStream (trade_updates) + StockDataStream (bars/quotes).
+    - handle every TradingStream event explicitly, no silent catch-all:
+        "fill"               -> tracker.on_fill + log order_filled
+        "partial_fill"       -> partial update + log WARNING
+        "canceled"|"expired" -> log INFO
+        "new"|"pending_new"  -> log DEBUG
+        "rejected"           -> log ERROR + Telegram alert
+        _                    -> log WARNING unhandled_trade_event
+    - callbacks stay < 5 ms: publish to Redis and return, no blocking logic.
     """
 
     async def start(self, symbols: list[str]) -> None:

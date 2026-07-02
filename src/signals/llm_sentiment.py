@@ -16,10 +16,10 @@ from __future__ import annotations
 
 async def get_sentiment_feature(headline: str, ticker: str) -> float:
     """TODO(Phase 5):
-      1. key = sha256(f"{ticker}:{headline}") ; hit Redis first, return cached.
-      2. Call Claude API with a strict-JSON system prompt
-         {"sentiment": -1|0|1, "confidence": 0..1, ...}.
-      3. value = sentiment * confidence ; cache it ; return it.
-      4. except (APIError, ValidationError): log WARNING, return 0.0.
+    1. key = sha256(f"{ticker}:{headline}") ; hit Redis first, return cached.
+    2. Call Claude API with a strict-JSON system prompt
+       {"sentiment": -1|0|1, "confidence": 0..1, ...}.
+    3. value = sentiment * confidence ; cache it ; return it.
+    4. except (APIError, ValidationError): log WARNING, return 0.0.
     """
     raise NotImplementedError("Phase 5 — LLM sentiment feature")

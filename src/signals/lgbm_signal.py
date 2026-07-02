@@ -17,11 +17,11 @@ from src.signals.base import AbstractSignalGenerator
 
 class LightGBMSignalGenerator(AbstractSignalGenerator):
     """TODO(Phase 2):
-      - __init__(artifact_path: Path): load all three artifact files;
-        fail-fast at startup if any is missing or feature list mismatches.
-      - generate(features): reorder columns to features.json order,
-        scaler.transform (never fit), predict_proba -> map to [-1, 1],
-        return self._clamp(signal).  Deterministic, < 5 ms, no I/O.
+    - __init__(artifact_path: Path): load all three artifact files;
+      fail-fast at startup if any is missing or feature list mismatches.
+    - generate(features): reorder columns to features.json order,
+      scaler.transform (never fit), predict_proba -> map to [-1, 1],
+      return self._clamp(signal).  Deterministic, < 5 ms, no I/O.
     """
 
     def __init__(self, artifact_path: Path) -> None:

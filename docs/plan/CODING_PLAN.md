@@ -24,7 +24,7 @@ work around it (see `ARCHITECTURE.md` ADRs for why contracts are where they are)
 
 | Phase | Doc | Delivers | GATE | Done |
 |---|---|---|---|---|
-| 0 | PHASE_0_FOUNDATIONS.md | config loader, test fixtures | `make check` | ☐ |
+| 0 | PHASE_0_FOUNDATIONS.md | config loader, test fixtures | `make check` | ☑ |
 | 1 | PHASE_1_DATA.md | Bar validation, DuckDB storage, Polygon sync | `make check` | ☐ |
 | 2 | PHASE_2_SIGNALS.md | features (lookahead-safe), LightGBM, HMM, training scripts | `make check` + anti-lookahead test | ☐ |
 | 3 | PHASE_3_RISK.md | Kelly, circuit breakers, ExposureTracker, validate() | `make check` | ☐ |
@@ -84,8 +84,8 @@ worked in v1" is not evidence — v1's backtests ran on unshifted features.
 2. **Cross-check the math twice**: (a) a hand-computed fixture in the test
    (≤ 10 rows, expected values derived manually in a comment), and
    (b) where a reference implementation exists, assert agreement on the same
-   input within tolerance — `pandas-ta`/`ta-lib` for indicators,
-   `empyrical`/`quantstats` for performance metrics (dev-dependency only).
+   input within tolerance — the `ta` library for indicators,
+   `quantstats` for performance metrics (dev-dependency only).
 3. **Lookahead pass**: every ported feature column ends `.shift(1)` with a
    `# lookahead-safe:` comment, and the truncation-invariance test must
    cover the new columns (parametrize it over ALL feature columns, not a

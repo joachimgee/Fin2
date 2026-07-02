@@ -16,10 +16,10 @@ from typing import Any
 
 class ExposureTracker:
     """TODO(Phase 3):
-      - on_fill(event): update position qty/avg price, realized P&L.
-      - sync_from_api(positions, equity): full state replace (startup/reconnect).
-      - Read API for validate(): position_value(symbol), total_exposure(),
-        sector_exposure(sector), equity — all lock-protected, all < 1 ms.
+    - on_fill(event): update position qty/avg price, realized P&L.
+    - sync_from_api(positions, equity): full state replace (startup/reconnect).
+    - Read API for validate(): position_value(symbol), total_exposure(),
+      sector_exposure(sector), equity — all lock-protected, all < 1 ms.
     """
 
     def on_fill(self, event: dict[str, Any]) -> None:

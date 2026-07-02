@@ -16,10 +16,10 @@ from __future__ import annotations
 
 class CircuitBreaker:
     """TODO(Phase 3):
-      - on_fill/on_equity_update feed the three checks after every event.
-      - trading_halted: bool property read by RiskManager.validate() step 1.
-      - reset_circuit_breaker(): the ONLY way back to trading. Manual call.
-        No time-based, condition-based, or startup-based auto-reset anywhere.
+    - on_fill/on_equity_update feed the three checks after every event.
+    - trading_halted: bool property read by RiskManager.validate() step 1.
+    - reset_circuit_breaker(): the ONLY way back to trading. Manual call.
+      No time-based, condition-based, or startup-based auto-reset anywhere.
     """
 
     @property

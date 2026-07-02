@@ -56,13 +56,10 @@ def _module_files() -> list[tuple[str, Path]]:
 def test_dependency_graph(module: str, pyfile: Path) -> None:
     for imp in _imports_of(pyfile):
         root = imp.split(".")[0]
-        assert root not in BANNED_EVERYWHERE, (
-            f"{pyfile}: imports deprecated SDK {imp!r}"
-        )
+        assert root not in BANNED_EVERYWHERE, f"{pyfile}: imports deprecated SDK {imp!r}"
         if root in FORBIDDEN_THIRD_PARTY.get(module, set()):
             raise AssertionError(
-                f"{pyfile}: {module}/ may not import {imp!r} — "
-                "only execution/ touches alpaca-py"
+                f"{pyfile}: {module}/ may not import {imp!r} — only execution/ touches alpaca-py"
             )
         if root == "src":
             target = imp.split(".")[1] if "." in imp else ""

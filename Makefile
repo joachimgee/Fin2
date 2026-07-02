@@ -5,17 +5,17 @@ install:
 	pre-commit install
 
 lint:
-	ruff check src tests
-	ruff format --check src tests
+	python3 -m ruff check src tests
+	python3 -m ruff format --check src tests
 
 typecheck:
-	mypy
+	python3 -m mypy
 
 test:
-	pytest -m "not integration"
+	python3 -m pytest -m "not integration"
 
 test-arch:
-	pytest tests/test_architecture.py -v
+	python3 -m pytest tests/test_architecture.py -v
 
 check: lint typecheck test
 

@@ -21,12 +21,12 @@ from src.shared.interfaces import AbstractBrokerClient
 
 class AlpacaBrokerClient(AbstractBrokerClient):
     """TODO(Phase 4): implement with alpaca-py TradingClient.
-      - __init__(api_key, secret_key, paper: bool = True)
-      - submit_order: build MarketOrderRequest/LimitOrderRequest from the
-        validated intent, wrap the call in try/except APIError with logged
-        fallback (never bare except).
-      - get_positions/get_account: normalize SDK objects to plain dicts —
-        alpaca-py types never leave this module.
+    - __init__(api_key, secret_key, paper: bool = True)
+    - submit_order: build MarketOrderRequest/LimitOrderRequest from the
+      validated intent, wrap the call in try/except APIError with logged
+      fallback (never bare except).
+    - get_positions/get_account: normalize SDK objects to plain dicts —
+      alpaca-py types never leave this module.
     """
 
     def __init__(self, api_key: str, secret_key: str, paper: bool = True) -> None:

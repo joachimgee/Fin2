@@ -12,7 +12,42 @@ import os
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from src.shared.exceptions import ConfigError
+
+# Mirrors config/base.yaml exactly. A key absent from this schema is a typo
+# by definition — load_config() rejects it instead of silently ignoring it
+# (a silently dropped risk cap would trade without that cap).
+_SCHEMA: dict[str, set[str]] = {
+    "execution": {"live_mode", "broker"},
+    "data": {"data_source", "db_path", "timeframe"},
+    "risk": {
+        "kelly_fraction",
+        "max_risk_per_trade_pct",
+        "max_position_pct",
+        "max_total_exposure_pct",
+        "max_sector_exposure_pct",
+        "max_correlation",
+        "circuit_breakers",
+    },
+    "wfo": {
+        "min_windows",
+        "min_wfe",
+        "min_oos_trades",
+        "min_oos_sharpe",
+        "max_oos_drawdown_pct",
+    },
+    "stream": {"reconnect_backoff_initial_s", "reconnect_backoff_cap_s"},
+    "llm": {"model", "cache_ttl_s"},
+    "monitoring": {"log_level", "daily_report_time_et"},
+}
+_CIRCUIT_BREAKER_KEYS: set[str] = {"daily_loss_pct", "max_drawdown_pct", "consecutive_losses"}
+
+# Hard ceilings (src/risk/CLAUDE.md <warn_about>). Values still come from the
+# YAML — these only bound what the YAML may ask for.
+_MAX_KELLY_FRACTION = 0.50
+_MAX_RISK_PER_TRADE_PCT = 0.05
 
 
 def require_env(name: str) -> str:
@@ -30,11 +65,52 @@ def require_env(name: str) -> str:
 def load_config(path: Path) -> dict[str, Any]:
     """Load and validate a YAML config file into a plain dict.
 
-    TODO(Phase 0): implement with yaml.safe_load + schema validation.
-      - Reject unknown keys (typo in a risk cap must fail loudly, not be ignored).
-      - Validate hard bounds here: kelly fraction <= 0.50,
-        max_risk_per_trade_pct <= 0.05 (src/risk/CLAUDE.md <warn_about>).
-      - execution.live_mode defaults to False; it is the ONLY source of
-        paper=False anywhere in the codebase.
+    Rejects unknown sections/keys, enforces the risk hard caps, and applies
+    the single safety default: execution.live_mode absent -> False (paper).
     """
-    raise NotImplementedError("Phase 0 — config loader")
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ConfigError(f"cannot read config file {path}: {exc}") from exc
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"invalid YAML in {path}: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise ConfigError(f"{path}: top level must be a mapping of sections")
+
+    for section, content in raw.items():
+        allowed = _SCHEMA.get(section)
+        if allowed is None:
+            raise ConfigError(f"{path}: unknown config section: {section!r}")
+        if not isinstance(content, dict):
+            raise ConfigError(f"{path}: section {section!r} must be a mapping")
+        for key in content:
+            if key not in allowed:
+                raise ConfigError(f"{path}: unknown key {section}.{key}")
+
+    risk = raw.get("risk", {})
+    breakers = risk.get("circuit_breakers", {})
+    if not isinstance(breakers, dict):
+        raise ConfigError(f"{path}: risk.circuit_breakers must be a mapping")
+    for key in breakers:
+        if key not in _CIRCUIT_BREAKER_KEYS:
+            raise ConfigError(f"{path}: unknown key risk.circuit_breakers.{key}")
+
+    kelly = risk.get("kelly_fraction")
+    if kelly is not None and kelly > _MAX_KELLY_FRACTION:
+        raise ConfigError(
+            f"{path}: risk.kelly_fraction={kelly} exceeds the hard cap "
+            f"{_MAX_KELLY_FRACTION} (half-Kelly)"
+        )
+    per_trade = risk.get("max_risk_per_trade_pct")
+    if per_trade is not None and per_trade > _MAX_RISK_PER_TRADE_PCT:
+        raise ConfigError(
+            f"{path}: risk.max_risk_per_trade_pct={per_trade} exceeds the hard cap "
+            f"{_MAX_RISK_PER_TRADE_PCT}"
+        )
+
+    execution = raw.setdefault("execution", {})
+    live_mode = execution.setdefault("live_mode", False)
+    if not isinstance(live_mode, bool):
+        raise ConfigError(f"{path}: execution.live_mode must be a boolean, got {live_mode!r}")
+
+    return raw

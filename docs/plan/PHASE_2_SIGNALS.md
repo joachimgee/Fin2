@@ -78,9 +78,11 @@ numeric params → YAML, never literals in `features.py`.
   so every future ported indicator is covered automatically.
 - `test_indicator_values_match_hand_computed` — ≤ 10-row fixture with expected
   RSI/SMA values derived by hand in a comment (port protocol step 2a).
-- `test_indicator_values_match_reference_library` — same input through
-  `pandas-ta` (dev dependency), agreement within tolerance before the shift
-  (port protocol step 2b).
+- `test_indicator_values_match_reference_library` — same input through the
+  `ta` library (dev dependency; pandas-ta was pulled from PyPI), agreement
+  within tolerance before the shift (port protocol step 2b). Start with
+  `pytest.importorskip("ta")` so a missing lib skips this test instead of
+  breaking the suite — the hand-computed fixture test remains mandatory.
 - `test_warmup_rows_nan`, `test_unexpected_nan_raises` (NaN mid-series →
   `DataValidationError`, never silently filled),
   `test_column_order_stable`, `test_input_not_mutated`,
