@@ -25,7 +25,7 @@ work around it (see `ARCHITECTURE.md` ADRs for why contracts are where they are)
 | Phase | Doc | Delivers | GATE | Done |
 |---|---|---|---|---|
 | 0 | PHASE_0_FOUNDATIONS.md | config loader, test fixtures | `make check` | ☑ |
-| 1 | PHASE_1_DATA.md | Bar validation, DuckDB storage, Polygon sync | `make check` | ☐ |
+| 1 | PHASE_1_DATA.md | Bar validation, DuckDB storage, Polygon sync | `make check` | ☑ |
 | 2 | PHASE_2_SIGNALS.md | features (lookahead-safe), LightGBM, HMM, training scripts | `make check` + anti-lookahead test | ☐ |
 | 3 | PHASE_3_RISK.md | Kelly, circuit breakers, ExposureTracker, validate() | `make check` | ☐ |
 | 4 | PHASE_4_EXECUTION.md | AlpacaBrokerClient, StreamManager | `make check` | ☐ |
