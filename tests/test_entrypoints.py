@@ -52,6 +52,7 @@ def _mock_wiring(monkeypatch: pytest.MonkeyPatch, alerts: list[str]) -> None:
     monkeypatch.setattr(rp, "aioredis", SimpleNamespace(from_url=lambda url: SimpleNamespace()))
     monkeypatch.setattr(rp, "make_alert_dispatcher", lambda *a, **k: alerts.append)
     monkeypatch.setattr(rp, "require_env", lambda name: f"fake-{name}")
+    monkeypatch.setattr(rp, "create_sentiment_provider", lambda *a, **k: "sentiment-sentinel")
 
 
 def _args(tmp_path: Path, strategy: str = "momentum_lightgbm") -> argparse.Namespace:
@@ -123,6 +124,7 @@ def test_wiring_smoke_and_fill_path(base_config: dict[str, Any], tmp_path: Path)
     components = rp.build_components(base_config, tmp_path, None)
     assert components.strategy.universe == base_config["strategy"]["universe"]
     assert components.stream.kwargs["paper"] is True
+    assert components.sentiment == "sentiment-sentinel"  # provider wired from config
     # the stream's on_fill hook must reach BOTH the strategy and the tracker
     components.stream.kwargs["on_fill"](
         {"symbol": "SPY", "side": "buy", "qty": 5.0, "price": 100.0}

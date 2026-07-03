@@ -36,6 +36,10 @@ backtest = [
     "quantstats>=0.0.62",
     "plotly>=5.20",
 ]
+finbert = [
+    "transformers>=4.40",  # local sentiment (llm.provider: finbert) — no API key
+    "torch>=2.2",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -71,6 +75,7 @@ module = [
     "joblib.*",
     "quantstats.*",
     "ta.*",
+    "transformers.*",
 ]
 ignore_missing_imports = true
 
