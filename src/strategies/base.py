@@ -30,6 +30,7 @@ class OrderIntent:
     qty: float
     signal_strength: float  # [-1.0, 1.0], from a SignalGenerator
     strategy_id: str
+    reference_price: float  # close that generated the signal — risk sizes off it
     order_type: Literal["market", "limit"] = "market"
     limit_price: float | None = None
 
