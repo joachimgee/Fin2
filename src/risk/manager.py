@@ -96,12 +96,14 @@ class RiskManager:
             return _reject("correlation", intent)
         return ValidationResult(True, notional / intent.reference_price, "ok")
 
-    def on_fill(self, event: dict[str, Any]) -> None:
-        """Forward fills to the tracker and breakers (called by execution)."""
+    def on_fill(self, event: dict[str, Any]) -> float:
+        """Forward a fill to the tracker and breakers; return realized P&L
+        (0.0 for opening fills). Called by both engines on every fill."""
         realized = self._tracker.on_fill(event)
         if realized != 0.0:
             self._breaker.on_trade_closed(realized)
         self._breaker.on_equity_update(self._tracker.equity)
+        return realized
 
     # --- pipeline steps ---------------------------------------------------------
 

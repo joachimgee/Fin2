@@ -24,10 +24,23 @@ risk:
 
 wfo:                              # go/no-go gates before any paper trading
   min_windows: 5
+  is_oos_ratio: 3                 # in-sample span = 3x the out-of-sample span
   min_wfe: 0.50
   min_oos_trades: 200
   min_oos_sharpe: 1.5
   max_oos_drawdown_pct: 0.20
+
+backtest:
+  initial_capital: 100000
+  slippage_bps: 5
+  commission_per_share: 0.005
+  periods_per_year: 252
+
+strategy:
+  universe: [SPY]
+  signal_threshold: 0.2
+  warmup_bars: 80                 # must exceed the longest feature window + shift
+  hostile_regimes: []             # HMM states in which NEW entries are blocked
 
 signals:
   features:            # every window/threshold used by src/signals/features.py
