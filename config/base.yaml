@@ -68,6 +68,7 @@ stream:
 
 llm:
   model: claude-sonnet-4-6
+  max_tokens: 200
   cache_ttl_s: 86400
 
 monitoring:
