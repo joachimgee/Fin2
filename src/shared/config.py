@@ -49,7 +49,7 @@ _SCHEMA: dict[str, set[str]] = {
     "strategy": {"universe", "signal_threshold", "warmup_bars", "hostile_regimes"},
     "stream": {"reconnect_backoff_initial_s", "reconnect_backoff_cap_s"},
     "llm": {"model", "max_tokens", "cache_ttl_s"},
-    "monitoring": {"log_level", "daily_report_time_et"},
+    "monitoring": {"log_level", "daily_report_time_et", "alert_timeout_s"},
 }
 _CIRCUIT_BREAKER_KEYS: set[str] = {"daily_loss_pct", "max_drawdown_pct", "consecutive_losses"}
 _FEATURE_KEYS: set[str] = {

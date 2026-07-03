@@ -87,3 +87,4 @@ llm:
 monitoring:
   log_level: INFO
   daily_report_time_et: "16:05"
+  alert_timeout_s: 5.0
