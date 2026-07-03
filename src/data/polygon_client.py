@@ -15,7 +15,7 @@ from typing import Any
 import httpx
 
 from src.data.models import Bar, validate_bar
-from src.shared.exceptions import ConfigError
+from src.shared.exceptions import ConfigError, DataValidationError
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +81,43 @@ class PolygonClient:
         log.info(
             "polygon_bars_fetched",
             extra={"symbol": symbol, "timeframe": timeframe, "count": len(bars)},
+        )
+        return bars
+
+    async def fetch_grouped_daily(self, day: datetime) -> list[Bar]:
+        """The ENTIRE US stock market's daily OHLCV in one request — what makes
+        screening 12k symbols affordable (~1 request per day of history).
+
+        Unlike fetch_bars (fail-fast), invalid rows are SKIPPED with a warning:
+        the grouped feed includes instruments we will never trade, and one
+        garbage row must not kill a whole sync day.
+        """
+        url = f"/v2/aggs/grouped/locale/us/market/stocks/{day:%Y-%m-%d}"
+        params = {"adjusted": "true", "apiKey": self._api_key}
+        payload = await self._get_with_retry(url, params)
+        bars: list[Bar] = []
+        skipped = 0
+        for row in payload.get("results") or []:
+            try:
+                bars.append(
+                    validate_bar(
+                        Bar(
+                            symbol=str(row["T"]),
+                            timestamp=datetime.fromtimestamp(row["t"] / 1000.0, tz=UTC),
+                            open=float(row["o"]),
+                            high=float(row["h"]),
+                            low=float(row["l"]),
+                            close=float(row["c"]),
+                            volume=int(row["v"]),
+                            vwap=float(row["vw"]) if "vw" in row else None,
+                        )
+                    )
+                )
+            except (DataValidationError, KeyError, TypeError, ValueError):
+                skipped += 1
+        log.info(
+            "polygon_grouped_daily_fetched",
+            extra={"day": f"{day:%Y-%m-%d}", "bars": len(bars), "skipped": skipped},
         )
         return bars
 

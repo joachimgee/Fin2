@@ -56,3 +56,11 @@ class BarStorage:
             " ORDER BY timestamp ASC",
             [symbol, start, end],
         ).df()
+
+    def get_all_bars(self, start: datetime, end: datetime) -> pd.DataFrame:
+        """All symbols in one frame — the screener's liquidity stage input."""
+        return self._con.execute(
+            "SELECT * FROM bars WHERE timestamp >= ? AND timestamp <= ?"
+            " ORDER BY symbol ASC, timestamp ASC",
+            [start, end],
+        ).df()

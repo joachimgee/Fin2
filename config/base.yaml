@@ -88,6 +88,18 @@ llm:
   max_tokens: 200
   cache_ttl_s: 86400
 
+screener:                         # 12k Alpaca assets -> point-in-time universe
+  exchanges: [NYSE, NASDAQ, ARCA]
+  min_price: 5.0
+  min_median_dollar_volume: 5000000
+  dollar_volume_window: 60
+  min_history_days: 252
+  max_atr_pct: 0.10
+  rank_momentum_window: 63
+  universe_size: 30
+  max_per_sector: 8
+  rebalance: weekly
+
 monitoring:
   log_level: INFO
   daily_report_time_et: "16:05"

@@ -33,7 +33,7 @@ work around it (see `ARCHITECTURE.md` ADRs for why contracts are where they are)
 | 6 | PHASE_6_BACKTEST_WFO.md | SimulatedBroker, engine, WFO gates | `make check` | ☑ |
 | 7 | PHASE_7_MONITORING.md | JSON logging, Telegram alerts | `make check` | ☑ |
 | 8 | PHASE_8_ENTRYPOINTS.md | composition root: sync/backtest/paper CLIs | `make check` + dry-run | ☑ |
-| 9 | PHASE_9_SCREENER.md | 12k-asset funnel → point-in-time universe files | `make check` + dry-run | ☐ |
+| 9 | PHASE_9_SCREENER.md | 12k-asset funnel → point-in-time universe files | `make check` + dry-run | ☑ |
 
 Phase order is dependency order: each phase only imports modules completed in
 earlier phases, so every phase is testable the moment it is written.

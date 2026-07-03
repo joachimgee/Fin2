@@ -16,8 +16,8 @@ from typing import Any
 
 from alpaca.common.exceptions import APIError
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import OrderSide, TimeInForce
-from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest
+from alpaca.trading.enums import AssetClass, OrderSide, TimeInForce
+from alpaca.trading.requests import GetAssetsRequest, LimitOrderRequest, MarketOrderRequest
 
 from src.risk import OrderIntent, RiskManager
 from src.shared.exceptions import OrderRejectedError
@@ -30,6 +30,10 @@ def _field(obj: Any, name: str) -> Any:
     """SDK calls return model objects or raw dicts depending on client config —
     normalize field access so plain dicts are what leaves this module."""
     return obj[name] if isinstance(obj, dict) else getattr(obj, name)
+
+
+def _enum_value(value: Any) -> str:
+    return str(getattr(value, "value", value))
 
 
 def build_order_request(intent: OrderIntent, adjusted_qty: float) -> Any:
@@ -117,3 +121,21 @@ class AlpacaBrokerClient(AbstractBrokerClient):
             "equity": float(_field(account, "equity")),
             "cash": float(_field(account, "cash")),
         }
+
+    async def list_assets(self) -> list[dict[str, Any]]:
+        """All US-equity assets as plain dicts — the screener's stage-1 input.
+        Concrete-only method: the ABC stays minimal (strategies and backtest
+        never need the asset catalog)."""
+        request = GetAssetsRequest(asset_class=AssetClass.US_EQUITY)
+        assets = await asyncio.to_thread(self._client.get_all_assets, request)
+        return [
+            {
+                "symbol": _field(a, "symbol"),
+                "exchange": _enum_value(_field(a, "exchange")),
+                "status": _enum_value(_field(a, "status")),
+                "tradable": bool(_field(a, "tradable")),
+                "shortable": bool(_field(a, "shortable")),
+                "fractionable": bool(_field(a, "fractionable")),
+            }
+            for a in assets
+        ]

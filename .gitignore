@@ -21,6 +21,7 @@ data/*.duckdb
 data/ticks/
 models/
 backtest_results/
+universe/
 
 # IDE / OS
 .vscode/
