@@ -5,26 +5,26 @@ install:
 	pre-commit install
 
 lint:
-	ruff check src tests
-	ruff format --check src tests
+	python3 -m ruff check src tests scripts
+	python3 -m ruff format --check src tests scripts
 
 typecheck:
-	mypy
+	python3 -m mypy
 
 test:
-	pytest -m "not integration"
+	python3 -m pytest -m "not integration"
 
 test-arch:
-	pytest tests/test_architecture.py -v
+	python3 -m pytest tests/test_architecture.py -v
 
 check: lint typecheck test
 
-# --- Trading workflows (implemented in later phases) ---
+# --- Trading workflows ---
 data-sync:
-	python -m src.data.polygon_client
+	python3 scripts/sync_data.py
 
 wfo:
-	python -m src.backtest.wfo $(S)
+	python3 scripts/run_backtest.py --strategy $(S)
 
 paper-trade:
-	python -m src.execution.stream_manager $(S)
+	python3 scripts/run_paper.py --strategy $(S)

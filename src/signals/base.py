@@ -12,9 +12,9 @@ from typing import Any
 
 class AbstractSignalGenerator(abc.ABC):
     """Invariants (src/signals/CLAUDE.md):
-      1. generate() always returns float in [-1.0, 1.0] — always via _clamp().
-      2. Every feature at time T uses only data from times <= T-1 (.shift(1)).
-      3. generate() is deterministic and < 5 ms. No network calls, no DB reads.
+    1. generate() always returns float in [-1.0, 1.0] — always via _clamp().
+    2. Every feature at time T uses only data from times <= T-1 (.shift(1)).
+    3. generate() is deterministic and < 5 ms. No network calls, no DB reads.
     """
 
     @abc.abstractmethod

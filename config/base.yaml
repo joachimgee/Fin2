@@ -24,10 +24,60 @@ risk:
 
 wfo:                              # go/no-go gates before any paper trading
   min_windows: 5
+  is_oos_ratio: 3                 # in-sample span = 3x the out-of-sample span
   min_wfe: 0.50
   min_oos_trades: 200
   min_oos_sharpe: 1.5
   max_oos_drawdown_pct: 0.20
+
+backtest:
+  initial_capital: 100000
+  slippage_bps: 5
+  commission_per_share: 0.005
+  periods_per_year: 252
+
+strategy:
+  universe: [SPY]
+  signal_threshold: 0.2
+  warmup_bars: 80                 # must exceed the longest feature window + shift
+  hostile_regimes: []             # HMM states in which NEW entries are blocked
+  stats:                          # Kelly inputs — update from the latest WFO OOS results
+    win_rate: 0.55
+    avg_win: 1.5
+    avg_loss: 1.0
+
+signals:
+  features:            # every window/threshold used by src/signals/features.py
+    ret_windows: [1, 5, 20]
+    vol_short_window: 20
+    vol_long_window: 60
+    parkinson_window: 20
+    gk_window: 20
+    sma_window: 20
+    ema_window: 20
+    ma_fast_window: 10
+    ma_slow_window: 50
+    macd_fast: 12
+    macd_slow: 26
+    macd_signal: 9
+    zscore_window: 20
+    bb_window: 20
+    bb_std: 2.0
+    cci_window: 20
+    rsi_window: 14
+    stoch_window: 14
+    stoch_smooth: 3
+    roc_window: 10
+    mfi_window: 14
+    volume_window: 20
+  training:            # offline training scripts (scripts/train_*.py)
+    label_horizon_bars: 5
+    train_frac: 0.70
+    valid_frac: 0.15
+    n_estimators: 300
+    learning_rate: 0.05
+    num_leaves: 31
+    hmm_states: 3
 
 stream:
   reconnect_backoff_initial_s: 1.0
@@ -35,8 +85,22 @@ stream:
 
 llm:
   model: claude-sonnet-4-6
+  max_tokens: 200
   cache_ttl_s: 86400
+
+screener:                         # 12k Alpaca assets -> point-in-time universe
+  exchanges: [NYSE, NASDAQ, ARCA]
+  min_price: 5.0
+  min_median_dollar_volume: 5000000
+  dollar_volume_window: 60
+  min_history_days: 252
+  max_atr_pct: 0.10
+  rank_momentum_window: 63
+  universe_size: 30
+  max_per_sector: 8
+  rebalance: weekly
 
 monitoring:
   log_level: INFO
   daily_report_time_et: "16:05"
+  alert_timeout_s: 5.0
