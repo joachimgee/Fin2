@@ -19,12 +19,12 @@ test-arch:
 
 check: lint typecheck test
 
-# --- Trading workflows (implemented in later phases) ---
+# --- Trading workflows ---
 data-sync:
-	python -m src.data.polygon_client
+	python3 scripts/sync_data.py
 
 wfo:
-	python -m src.backtest.wfo $(S)
+	python3 scripts/run_backtest.py --strategy $(S)
 
 paper-trade:
-	python -m src.execution.stream_manager $(S)
+	python3 scripts/run_paper.py --strategy $(S)

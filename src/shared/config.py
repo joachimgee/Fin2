@@ -46,7 +46,7 @@ _SCHEMA: dict[str, set[str]] = {
         "commission_per_share",
         "periods_per_year",
     },
-    "strategy": {"universe", "signal_threshold", "warmup_bars", "hostile_regimes"},
+    "strategy": {"universe", "signal_threshold", "warmup_bars", "hostile_regimes", "stats"},
     "stream": {"reconnect_backoff_initial_s", "reconnect_backoff_cap_s"},
     "llm": {"model", "max_tokens", "cache_ttl_s"},
     "monitoring": {"log_level", "daily_report_time_et", "alert_timeout_s"},
@@ -76,6 +76,7 @@ _FEATURE_KEYS: set[str] = {
     "mfi_window",
     "volume_window",
 }
+_STRATEGY_STATS_KEYS: set[str] = {"win_rate", "avg_win", "avg_loss"}
 _TRAINING_KEYS: set[str] = {
     "label_horizon_bars",
     "train_frac",
@@ -144,6 +145,8 @@ def load_config(path: Path) -> dict[str, Any]:
     signals = raw.get("signals", {})
     _check_nested(path, "signals.features", signals.get("features", {}), _FEATURE_KEYS)
     _check_nested(path, "signals.training", signals.get("training", {}), _TRAINING_KEYS)
+    strategy = raw.get("strategy", {})
+    _check_nested(path, "strategy.stats", strategy.get("stats", {}), _STRATEGY_STATS_KEYS)
 
     kelly = risk.get("kelly_fraction")
     if kelly is not None and kelly > _MAX_KELLY_FRACTION:

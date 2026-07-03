@@ -41,6 +41,10 @@ strategy:
   signal_threshold: 0.2
   warmup_bars: 80                 # must exceed the longest feature window + shift
   hostile_regimes: []             # HMM states in which NEW entries are blocked
+  stats:                          # Kelly inputs — update from the latest WFO OOS results
+    win_rate: 0.55
+    avg_win: 1.5
+    avg_loss: 1.0
 
 signals:
   features:            # every window/threshold used by src/signals/features.py
