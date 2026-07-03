@@ -84,7 +84,9 @@ stream:
   reconnect_backoff_cap_s: 60.0
 
 llm:
-  model: claude-sonnet-4-6
+  provider: finbert            # finbert (local, free) | anthropic (API) | none
+  finbert_model: ProsusAI/finbert
+  model: claude-sonnet-4-6     # used only when provider: anthropic
   max_tokens: 200
   cache_ttl_s: 86400
 

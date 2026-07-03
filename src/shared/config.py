@@ -60,7 +60,7 @@ _SCHEMA: dict[str, set[str]] = {
         "rebalance",
     },
     "stream": {"reconnect_backoff_initial_s", "reconnect_backoff_cap_s"},
-    "llm": {"model", "max_tokens", "cache_ttl_s"},
+    "llm": {"provider", "finbert_model", "model", "max_tokens", "cache_ttl_s"},
     "monitoring": {"log_level", "daily_report_time_et", "alert_timeout_s"},
 }
 _CIRCUIT_BREAKER_KEYS: set[str] = {"daily_loss_pct", "max_drawdown_pct", "consecutive_losses"}

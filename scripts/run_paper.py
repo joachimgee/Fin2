@@ -23,7 +23,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-import anthropic  # noqa: F401 — reserved for SentimentFeature wiring (news feed TBD)
+import anthropic
 import redis.asyncio as aioredis
 import yaml
 from src.data.models import Bar
@@ -38,6 +38,7 @@ from src.shared.config import load_config, require_env
 from src.signals.features import compute_features
 from src.signals.lgbm_signal import LightGBMSignalGenerator
 from src.signals.regime_hmm import RegimeDetector
+from src.signals.sentiment_factory import create_sentiment_provider
 from src.strategies.momentum_lightgbm import MomentumLightGBM
 
 log = logging.getLogger(__name__)
@@ -101,6 +102,13 @@ def build_components(
         risk.on_fill(fill)
 
     redis_client = aioredis.from_url(require_env("REDIS_URL"))
+    # ANTHROPIC_API_KEY is required ONLY when the provider actually needs it
+    anthropic_client = (
+        anthropic.AsyncAnthropic(api_key=require_env("ANTHROPIC_API_KEY"))
+        if config["llm"]["provider"] == "anthropic"
+        else None
+    )
+    sentiment = create_sentiment_provider(config, redis_client, anthropic_client)
     stream = StreamManager(
         api_key,
         secret_key,
@@ -121,6 +129,7 @@ def build_components(
         redis=redis_client,
         resync=resync,
         paper=paper,
+        sentiment=sentiment,  # consumed by the news pipeline when it lands
     )
 
 
