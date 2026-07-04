@@ -33,8 +33,10 @@ log = logging.getLogger(__name__)
 
 
 def make_window_runners(
-    config: dict[str, Any], artifact_dir: Path, hmm_dir: Path | None
+    config: dict[str, Any], artifact_dir: Path, hmm_dir: Path | None, all_bars: pd.DataFrame
 ) -> tuple[Any, Any]:
+    warmup = int(config["strategy"]["warmup_bars"])
+
     def features_fn(frame: pd.DataFrame) -> pd.DataFrame:
         return compute_features(frame, config)
 
@@ -42,6 +44,15 @@ def make_window_runners(
         return {}  # no tunable params yet — sees IS only by construction
 
     def evaluate_window(bars: pd.DataFrame, params: dict[str, Any]) -> dict[str, float]:
+        # Warmup lead-in: prepend the PAST bars preceding the window so the
+        # strategy's indicator buffers are full when the window opens. The
+        # engine forbids trading before trade_start, and metrics exclude the
+        # lead-in — the window itself stays untouched (point-in-time safe:
+        # lead-in bars are strictly older than the window).
+        first_position = int(bars.index[0])
+        lead_in = all_bars.iloc[max(0, first_position - warmup) : first_position]
+        run_bars = pd.concat([lead_in, bars])
+        trade_start = bars["timestamp"].iloc[0]
         tracker = ExposureTracker()
         breaker = CircuitBreaker(config["risk"]["circuit_breakers"], on_trip=lambda r, v: None)
         risk = RiskManager(config, tracker, breaker, dict(config["strategy"]["stats"]))
@@ -51,7 +62,15 @@ def make_window_runners(
             features_fn,
             RegimeDetector(hmm_dir) if hmm_dir is not None else None,
         )
-        engine = BacktestEngine(strategy, risk, tracker, SimulatedBroker(config), bars, config)
+        engine = BacktestEngine(
+            strategy,
+            risk,
+            tracker,
+            SimulatedBroker(config),
+            run_bars,
+            config,
+            trade_start=trade_start,
+        )
         results = asyncio.run(engine.run())
         return {
             key: float(results[key])
@@ -81,7 +100,10 @@ def main() -> None:
         datetime.fromisoformat(args.end).replace(tzinfo=UTC),
     )
     optimize_window, evaluate_window = make_window_runners(
-        config, Path(args.artifacts), Path(args.hmm_artifacts) if args.hmm_artifacts else None
+        config,
+        Path(args.artifacts),
+        Path(args.hmm_artifacts) if args.hmm_artifacts else None,
+        all_bars=bars,
     )
     results = run_wfo(
         bars, config, optimize_window, evaluate_window, args.strategy, Path(args.output_dir)

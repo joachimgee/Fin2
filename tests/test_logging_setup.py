@@ -68,6 +68,12 @@ def test_level_from_config(capsys: pytest.CaptureFixture[str]) -> None:
     assert "visible_event" in out
 
 
+def test_httpx_logger_silenced_to_warning() -> None:
+    """httpx logs full URLs (apiKey included) at INFO — must never reach logs."""
+    setup_logging("INFO")
+    assert logging.getLogger("httpx").level == logging.WARNING
+
+
 def test_non_serializable_extra_stringified(capsys: pytest.CaptureFixture[str]) -> None:
     setup_logging("INFO")
     logging.getLogger("x").info("evt", extra={"when": object()})
