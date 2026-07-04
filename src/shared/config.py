@@ -21,7 +21,7 @@ from src.shared.exceptions import ConfigError
 # (a silently dropped risk cap would trade without that cap).
 _SCHEMA: dict[str, set[str]] = {
     "execution": {"live_mode", "broker"},
-    "data": {"data_source", "db_path", "timeframe"},
+    "data": {"data_source", "db_path", "timeframe", "sync_pause_s"},
     "risk": {
         "kelly_fraction",
         "max_risk_per_trade_pct",

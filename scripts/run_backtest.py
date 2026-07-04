@@ -1,9 +1,13 @@
-"""WFO runner (make wfo S=<strategy>): real engine, real risk stack, gates.
+"""WFO runner (make wfo S=<strategy>): TRUE walk-forward — the model is
+retrained inside every window on its in-sample span only, then evaluated
+once on the untouched out-of-sample span. Exit code 0 only when
+cleared_for_paper (cron/CI-usable).
 
-Exit code 0 only when cleared_for_paper — usable directly in CI/cron.
-The current strategy has no tunable parameters, so optimize_window returns
-{} — the WFO structure (IS-only optimization) is already in place for when
-parameters arrive.
+Multi-symbol correct: windows are sliced over TRADING DAYS (unique
+timestamps), not rows, so every symbol contributes evenly; each window gets
+a warmup lead-in of the preceding warmup_bars days (strictly past data).
+The HMM regime detector is not used inside the WFO: per-window regime
+models on ~180 bars are unstable, and hostile_regimes gates entries only.
 """
 
 from __future__ import annotations
@@ -12,6 +16,7 @@ import argparse
 import asyncio
 import logging
 from datetime import UTC, datetime
+from itertools import count
 from pathlib import Path
 from typing import Any
 
@@ -26,41 +31,46 @@ from src.risk.manager import RiskManager
 from src.shared.config import load_config
 from src.signals.features import compute_features
 from src.signals.lgbm_signal import LightGBMSignalGenerator
-from src.signals.regime_hmm import RegimeDetector
 from src.strategies.momentum_lightgbm import MomentumLightGBM
+
+from scripts.train_lgbm import train_lgbm_artifacts
 
 log = logging.getLogger(__name__)
 
 
 def make_window_runners(
-    config: dict[str, Any], artifact_dir: Path, hmm_dir: Path | None, all_bars: pd.DataFrame
+    config: dict[str, Any], all_bars: pd.DataFrame, work_dir: Path
 ) -> tuple[Any, Any]:
     warmup = int(config["strategy"]["warmup_bars"])
+    day_list = sorted(all_bars["timestamp"].unique())
+    day_position = {day: i for i, day in enumerate(day_list)}
+    window_ids = count()
 
     def features_fn(frame: pd.DataFrame) -> pd.DataFrame:
         return compute_features(frame, config)
 
-    def optimize_window(is_bars: pd.DataFrame) -> dict[str, Any]:
-        return {}  # no tunable params yet — sees IS only by construction
+    def bars_with_lead_in(days: pd.DataFrame) -> tuple[pd.DataFrame, Any]:
+        """All symbols' bars for the day span, prepended with the warmup_bars
+        PRECEDING days (strictly older than the span — point-in-time safe)."""
+        span_start, span_end = days["timestamp"].iloc[0], days["timestamp"].iloc[-1]
+        lead_start = day_list[max(0, day_position[span_start] - warmup)]
+        mask = (all_bars["timestamp"] >= lead_start) & (all_bars["timestamp"] <= span_end)
+        return all_bars[mask].sort_values("timestamp"), span_start
 
-    def evaluate_window(bars: pd.DataFrame, params: dict[str, Any]) -> dict[str, float]:
-        # Warmup lead-in: prepend the PAST bars preceding the window so the
-        # strategy's indicator buffers are full when the window opens. The
-        # engine forbids trading before trade_start, and metrics exclude the
-        # lead-in — the window itself stays untouched (point-in-time safe:
-        # lead-in bars are strictly older than the window).
-        first_position = int(bars.index[0])
-        lead_in = all_bars.iloc[max(0, first_position - warmup) : first_position]
-        run_bars = pd.concat([lead_in, bars])
-        trade_start = bars["timestamp"].iloc[0]
+    def optimize_window(is_days: pd.DataFrame) -> dict[str, Any]:
+        """TRUE WFO step: retrain the model on THIS window's IS bars only."""
+        window_bars, train_start = bars_with_lead_in(is_days)
+        artifact_dir = work_dir / f"window_{next(window_ids)}"
+        train_lgbm_artifacts(window_bars, config, artifact_dir, train_start=train_start)
+        return {"artifact_dir": artifact_dir}
+
+    def evaluate_window(days: pd.DataFrame, params: dict[str, Any]) -> dict[str, float]:
+        run_bars, trade_start = bars_with_lead_in(days)
         tracker = ExposureTracker()
         breaker = CircuitBreaker(config["risk"]["circuit_breakers"], on_trip=lambda r, v: None)
         risk = RiskManager(config, tracker, breaker, dict(config["strategy"]["stats"]))
         strategy = MomentumLightGBM(
-            config,
-            LightGBMSignalGenerator(artifact_dir),
-            features_fn,
-            RegimeDetector(hmm_dir) if hmm_dir is not None else None,
+            config, LightGBMSignalGenerator(params["artifact_dir"]), features_fn
         )
         engine = BacktestEngine(
             strategy,
@@ -84,8 +94,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--strategy", required=True)
     parser.add_argument("--config", default="config/base.yaml")
-    parser.add_argument("--artifacts", default="models/latest")
-    parser.add_argument("--hmm-artifacts", default=None)
     parser.add_argument("--start", default="2015-01-01")
     parser.add_argument("--end", default=f"{datetime.now(tz=UTC):%Y-%m-%d}")
     parser.add_argument("--output-dir", default="backtest_results")
@@ -93,20 +101,27 @@ def main() -> None:
 
     config = load_config(Path(args.config))
     setup_logging(str(config["monitoring"]["log_level"]))
-    symbol = str(config["strategy"]["universe"][0])
-    bars = BarStorage(Path(config["data"]["db_path"])).get_bars(
-        symbol,
-        datetime.fromisoformat(args.start).replace(tzinfo=UTC),
-        datetime.fromisoformat(args.end).replace(tzinfo=UTC),
+    storage = BarStorage(Path(config["data"]["db_path"]))
+    start = datetime.fromisoformat(args.start).replace(tzinfo=UTC)
+    end = datetime.fromisoformat(args.end).replace(tzinfo=UTC)
+    all_bars = pd.concat(
+        [storage.get_bars(symbol, start, end) for symbol in config["strategy"]["universe"]]
+    ).sort_values("timestamp")
+    log.info(
+        "wfo_data_loaded",
+        extra={
+            "symbols": int(all_bars["symbol"].nunique()),
+            "days": int(all_bars["timestamp"].nunique()),
+            "rows": len(all_bars),
+        },
     )
-    optimize_window, evaluate_window = make_window_runners(
-        config,
-        Path(args.artifacts),
-        Path(args.hmm_artifacts) if args.hmm_artifacts else None,
-        all_bars=bars,
-    )
+
+    # windows are sliced over trading DAYS — one row per unique timestamp
+    days = pd.DataFrame({"timestamp": sorted(all_bars["timestamp"].unique())})
+    work_dir = Path(args.output_dir) / f"wfo_models_{datetime.now(tz=UTC):%Y%m%d_%H%M%S}"
+    optimize_window, evaluate_window = make_window_runners(config, all_bars, work_dir)
     results = run_wfo(
-        bars, config, optimize_window, evaluate_window, args.strategy, Path(args.output_dir)
+        days, config, optimize_window, evaluate_window, args.strategy, Path(args.output_dir)
     )
     for name, gate in results["gates"].items():
         log.info(
