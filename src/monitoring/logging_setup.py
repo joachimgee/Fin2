@@ -55,3 +55,6 @@ def setup_logging(level: str = "INFO") -> None:
     handler.set_name(_HANDLER_NAME)
     handler.setFormatter(_JsonFormatter())
     root.addHandler(handler)
+    # httpx logs full request URLs at INFO — including apiKey query params.
+    # Never let credentials reach the log stream.
+    logging.getLogger("httpx").setLevel(logging.WARNING)

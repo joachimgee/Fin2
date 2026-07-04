@@ -117,13 +117,20 @@ class BacktestEngine:
         broker: SimulatedBroker,
         bars: pd.DataFrame,  # columns: symbol, timestamp, open, high, low, close, volume
         config: dict[str, Any],
+        trade_start: Any | None = None,
     ) -> None:
+        """trade_start: bars before this timestamp are a WARMUP LEAD-IN — the
+        strategy sees them (indicator buffers fill) but every intent is
+        discarded and they are excluded from the equity curve/metrics. Lets
+        WFO evaluate windows shorter than the strategy warmup using only
+        PAST bars (never future ones)."""
         self._strategy = strategy
         self._risk = risk_manager
         self._tracker = tracker
         self._broker = broker
         self._bars = bars.sort_values("timestamp")
         self._periods_per_year = int(config["backtest"]["periods_per_year"])
+        self._trade_start = trade_start
 
     async def run(self) -> dict[str, Any]:
         # startup sync — same sequence as the live entrypoint
@@ -144,12 +151,15 @@ class BacktestEngine:
                 close=float(row.close),
                 volume=int(row.volume),
             )
+            in_lead_in = self._trade_start is not None and bar.timestamp < self._trade_start
             for fill in self._broker.fill_at_open(bar):
                 self._strategy.on_trade_update(fill)
                 realized = self._risk.on_fill(fill)
                 if realized != 0.0:
                     pnls.append(realized)
             intent = self._strategy.on_bar(bar)
+            if in_lead_in:
+                intent = None  # warmup only — no trading before the evaluation span
             if intent is not None:
                 result = self._risk.validate(intent)  # the mandatory gate — as live
                 if result.approved:
@@ -161,8 +171,9 @@ class BacktestEngine:
                     await self._broker.submit_order(order)
                     orders.append({"timestamp": bar.timestamp, **order})
             self._broker.mark(bar)
-            equity_curve.append(self._broker.equity())
-            timestamps.append(bar.timestamp)
+            if not in_lead_in:  # metrics cover the evaluation span only
+                equity_curve.append(self._broker.equity())
+                timestamps.append(bar.timestamp)
         return self._results(pd.Series(equity_curve, index=timestamps), pnls, orders)
 
     def _results(

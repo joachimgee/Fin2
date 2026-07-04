@@ -78,6 +78,29 @@ async def test_fill_event_shape_matches_live_contract(base_config: dict[str, Any
     assert all(set(f) == {"symbol", "side", "qty", "price"} for f in strategy.fills_seen)
 
 
+async def test_trade_start_lead_in_warms_up_without_trading(base_config: dict[str, Any]) -> None:
+    """Bars before trade_start feed the strategy but can never trade, and are
+    excluded from the equity curve — the WFO warmup lead-in contract."""
+    config = frictionless(base_config)
+    strategy = BuyLowSellHigh(config, NullGen())
+    risk = PassThroughRisk()
+    bars = bars_frame(_PRICES)
+    trade_start = bars["timestamp"].iloc[3]  # t1's buy signal falls in the lead-in
+    engine = BacktestEngine(
+        strategy,
+        risk,  # type: ignore[arg-type]
+        risk.tracker,
+        SimulatedBroker(config),
+        bars,
+        config,
+        trade_start=trade_start,
+    )
+    results = await engine.run()
+    assert strategy.fills_seen == []  # the lead-in signal was discarded, never filled
+    assert len(results["equity_curve"]) == 2  # only the evaluation span is measured
+    assert list(results["equity_curve"]) == pytest.approx([10000.0, 10000.0])
+
+
 async def test_same_strategy_instance_reusable_after_reset(base_config: dict[str, Any]) -> None:
     config = frictionless(base_config)
     strategy = BuyLowSellHigh(config, NullGen())
