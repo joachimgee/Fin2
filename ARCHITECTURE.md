@@ -98,6 +98,18 @@ Redis pub/sub so N strategies subscribe without touching Alpaca.
 Never inferred from env/branch names, never a CLI flag: one accidental
 `paper=False` submits real orders.
 
+### ADR-008 — Long history for fixed universes: Alpaca Market Data (IEX)
+Polygon's free tier caps history at ~2 years — too short for walk-forward
+validation (paid upgrade is not an option). Alpaca Market Data's free plan
+serves IEX-feed daily bars back to ~2016 with `adjustment=all`
+(split+dividend adjusted). Sanctioned **only for fixed research universes**
+(`scripts.sync_data --source alpaca`): IEX volumes are a fraction of the
+consolidated tape (a consistent bias, harmless for price-derived features but
+wrong for absolute liquidity filters), and closes can differ marginally from
+the official auction close. Full-market screening stays on Polygon (ADR-004).
+Implemented as raw REST (`src/data/alpaca_data.py`, httpx) — the alpaca-py
+SDK remains exclusive to execution/ per the dependency graph.
+
 ## 5. Control gates (when code lands)
 
 | Gate | Where | Blocks |
