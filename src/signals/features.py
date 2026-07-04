@@ -206,6 +206,12 @@ def compute_features(df: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
     raw.update(_trend_features(df, p))
     raw.update(_oscillator_features(df, p))
     raw.update(_volume_and_range_features(df, p))
+    if "news_sentiment" in df.columns:
+        # optional column, pre-merged by the caller (scripts/score_news.py
+        # output; no-news days already 0.0 = neutral by definition). Goes
+        # through the same shift chokepoint as every other feature.
+        raw["news_sentiment"] = df["news_sentiment"].astype("float64")
+        raw["news_sentiment_5d"] = df["news_sentiment"].astype("float64").rolling(5).mean()
 
     # lookahead-safe: SINGLE shift chokepoint — feature value at T is the raw
     # indicator at T-1, so every column only sees data <= T-1.

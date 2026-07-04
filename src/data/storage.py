@@ -28,6 +28,16 @@ CREATE TABLE IF NOT EXISTS bars (
 )
 """
 
+_CREATE_SENTIMENT_TABLE = """
+CREATE TABLE IF NOT EXISTS news_sentiment (
+    symbol      VARCHAR,
+    date        DATE,
+    score       DOUBLE,
+    n_headlines INTEGER,
+    PRIMARY KEY (symbol, date)
+)
+"""
+
 
 class BarStorage:
     """Owns the DuckDB connection and the bars table.
@@ -39,6 +49,7 @@ class BarStorage:
     def __init__(self, db_path: Path) -> None:
         self._con = duckdb.connect(str(db_path))
         self._con.execute(_CREATE_TABLE)
+        self._con.execute(_CREATE_SENTIMENT_TABLE)
 
     def insert_bars(self, bars: list[Bar]) -> int:
         if not bars:
@@ -63,4 +74,20 @@ class BarStorage:
             "SELECT * FROM bars WHERE timestamp >= ? AND timestamp <= ?"
             " ORDER BY symbol ASC, timestamp ASC",
             [start, end],
+        ).df()
+
+    def insert_daily_sentiment(self, rows: list[tuple[str, datetime, float, int]]) -> int:
+        """(symbol, date, mean signed FinBERT score, n headlines scored).
+        Only days WITH headlines are stored — no-news days are neutral by
+        definition and filled with 0.0 at feature-merge time, not here."""
+        if not rows:
+            return 0
+        self._con.executemany("INSERT OR REPLACE INTO news_sentiment VALUES (?, ?, ?, ?)", rows)
+        return len(rows)
+
+    def get_daily_sentiment(self, symbol: str) -> pd.DataFrame:
+        return self._con.execute(
+            "SELECT symbol, date, score, n_headlines FROM news_sentiment"
+            " WHERE symbol = ? ORDER BY date ASC",
+            [symbol],
         ).df()

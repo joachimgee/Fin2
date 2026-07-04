@@ -55,6 +55,27 @@ def test_shift_applied_one_bar(sample_bars: pd.DataFrame, feature_frame: pd.Data
         assert feature_frame["log_ret_1"].iloc[k] == pytest.approx(expected, rel=1e-12)
 
 
+def test_news_sentiment_column_optional_and_shifted(
+    sample_bars: pd.DataFrame, base_config: dict[str, Any], feature_frame: pd.DataFrame
+) -> None:
+    """With a pre-merged news_sentiment column: two extra features, both going
+    through the shift chokepoint (value at T is the raw score at T-1).
+    Without it: absent — the base feature set is untouched."""
+    assert "news_sentiment" not in feature_frame.columns
+    rng = np.random.default_rng(5)
+    with_news = sample_bars.assign(news_sentiment=rng.uniform(-1, 1, len(sample_bars)))
+    features = feat.compute_features(with_news, base_config)
+    assert features["news_sentiment"].iloc[100] == pytest.approx(
+        with_news["news_sentiment"].iloc[99]
+    )
+    expected_5d = with_news["news_sentiment"].iloc[95:100].mean()
+    assert features["news_sentiment_5d"].iloc[100] == pytest.approx(expected_5d)
+    assert set(features.columns) - set(feature_frame.columns) == {
+        "news_sentiment",
+        "news_sentiment_5d",
+    }
+
+
 # --- NaN policy and purity ----------------------------------------------------
 
 

@@ -100,6 +100,38 @@ class AlpacaDataClient:
         )
         return bars
 
+    async def fetch_news(
+        self, symbol: str, start: datetime, end: datetime
+    ) -> list[tuple[datetime, str]]:
+        """Timestamped headlines for one symbol, oldest first (Benzinga feed,
+        free, back to ~2015). Returns (created_at UTC, headline) — content is
+        never fetched, FinBERT scores headlines only."""
+        news: list[tuple[datetime, str]] = []
+        page_token: str | None = None
+        async with self._client(self._base_url) as client:
+            while True:
+                params: dict[str, str] = {
+                    "symbols": symbol,
+                    "start": f"{start:%Y-%m-%dT%H:%M:%SZ}",
+                    "end": f"{end:%Y-%m-%dT%H:%M:%SZ}",
+                    "limit": "50",  # documented endpoint maximum
+                    "sort": "asc",
+                    "include_content": "false",
+                }
+                if page_token is not None:
+                    params["page_token"] = page_token
+                payload = await self._get_with_retry(client, "/v1beta1/news", params)
+                for item in payload.get("news") or []:
+                    created = datetime.fromisoformat(
+                        str(item["created_at"]).replace("Z", "+00:00")
+                    ).astimezone(UTC)
+                    news.append((created, str(item["headline"])))
+                page_token = payload.get("next_page_token")
+                if not page_token:
+                    break
+        log.info("alpaca_news_fetched", extra={"symbol": symbol, "count": len(news)})
+        return news
+
     async def fetch_active_symbols(self, exchanges: list[str]) -> list[str]:
         """Active, tradable US equities on the given exchanges — plain symbols
         only. Trading API metadata (read-only); today's active list, so any
