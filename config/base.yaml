@@ -48,6 +48,11 @@ strategy:
     win_rate: 0.55
     avg_win: 1.5
     avg_loss: 1.0
+  mean_reversion:                 # rule-based family (src/strategies/mean_reversion.py)
+    entry_signal: 0.5             # signal = -zscore/zscore_clip -> 0.5 means z <= -1.5
+    exit_signal: 0.0              # exit when price is back at/above its rolling mean
+    max_hold_bars: 10             # time stop: unpaid reversion thesis is wrong
+    zscore_clip: 3.0              # z-score normalization bound for the signal
 
 signals:
   features:            # every window/threshold used by src/signals/features.py
