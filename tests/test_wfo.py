@@ -75,6 +75,32 @@ def test_wfe_below_min_not_cleared(base_config: dict[str, Any], tmp_path: Path) 
     assert results["gates"]["wfe"]["passed"] is False
 
 
+def test_oos_trade_stats_aggregated_across_windows(
+    base_config: dict[str, Any], tmp_path: Path
+) -> None:
+    """Kelly inputs: 5 OOS windows x (3 wins totalling $60, 2 losses totalling $30)
+    -> win_rate 0.6, avg_win 60/3=20, avg_loss 30/2=15 — hand-computed."""
+
+    def evaluate(bars: pd.DataFrame, params: dict[str, Any]) -> dict[str, float]:
+        base = {"total_return": 0.03, "sharpe": 2.0, "max_drawdown": 0.1, "n_trades": 5}
+        if len(bars) == 300:  # IS window — must NOT contribute to the stats
+            return {**base, "n_wins": 99, "n_losses": 99, "gross_win": 9e9, "gross_loss": 9e9}
+        return {**base, "n_wins": 3, "n_losses": 2, "gross_win": 60.0, "gross_loss": 30.0}
+
+    results = run_wfo(_bars(800), base_config, lambda df: {}, evaluate, "s", tmp_path)
+    stats = results["oos_trade_stats"]
+    assert (stats["n_wins"], stats["n_losses"]) == (15, 10)
+    assert stats["win_rate"] == pytest.approx(0.6)
+    assert stats["avg_win"] == pytest.approx(20.0)
+    assert stats["avg_loss"] == pytest.approx(15.0)
+
+
+def test_oos_trade_stats_zero_trades_safe(base_config: dict[str, Any], tmp_path: Path) -> None:
+    results = run_wfo(_bars(800), base_config, lambda df: {}, _evaluator(0.006), "s", tmp_path)
+    stats = results["oos_trade_stats"]  # evaluator returns no win/loss keys at all
+    assert (stats["win_rate"], stats["avg_win"], stats["avg_loss"]) == (0.0, 0.0, 0.0)
+
+
 def test_results_yaml_written_with_gates(base_config: dict[str, Any], tmp_path: Path) -> None:
     run_wfo(_bars(800), base_config, lambda df: {}, _evaluator(0.006), "momentum", tmp_path)
     files = list(tmp_path.glob("momentum_*.yaml"))

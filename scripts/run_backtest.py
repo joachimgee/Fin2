@@ -28,7 +28,7 @@ from src.monitoring.logging_setup import setup_logging
 from src.risk.circuit_breaker import CircuitBreaker
 from src.risk.exposure_tracker import ExposureTracker
 from src.risk.manager import RiskManager
-from src.shared.config import load_config
+from src.shared.config import load_config, load_universe
 from src.shared.exceptions import ConfigError
 from src.signals.features import compute_features
 from src.signals.lgbm_signal import LightGBMSignalGenerator
@@ -100,10 +100,17 @@ def make_window_runners(
             trade_start=trade_start,
         )
         results = asyncio.run(engine.run())
-        return {
-            key: float(results[key])
-            for key in ("total_return", "sharpe", "max_drawdown", "n_trades")
-        }
+        keys = (
+            "total_return",
+            "sharpe",
+            "max_drawdown",
+            "n_trades",
+            "n_wins",
+            "n_losses",
+            "gross_win",
+            "gross_loss",
+        )
+        return {key: float(results[key]) for key in keys}
 
     return optimize_window, evaluate_window
 
@@ -115,9 +122,13 @@ def main() -> None:
     parser.add_argument("--start", default="2015-01-01")
     parser.add_argument("--end", default=f"{datetime.now(tz=UTC):%Y-%m-%d}")
     parser.add_argument("--output-dir", default="backtest_results")
+    parser.add_argument("--universe", default=None, help="YAML universe override file")
     args = parser.parse_args()
 
     config = load_config(Path(args.config))
+    override = load_universe(args.universe)
+    if override is not None:
+        config["strategy"]["universe"] = override
     setup_logging(str(config["monitoring"]["log_level"]))
     storage = BarStorage(Path(config["data"]["db_path"]))
     start = datetime.fromisoformat(args.start).replace(tzinfo=UTC)
@@ -153,6 +164,7 @@ def main() -> None:
                 "passed": gate["passed"],
             },
         )
+    log.info("wfo_oos_trade_stats", extra=dict(results["oos_trade_stats"]))
     log.info("wfo_verdict", extra={"cleared_for_paper": results["cleared_for_paper"]})
     raise SystemExit(0 if results["cleared_for_paper"] else 1)
 

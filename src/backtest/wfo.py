@@ -70,6 +70,8 @@ def run_wfo(
     oos_sharpes: list[float] = []
     oos_drawdowns: list[float] = []
     oos_trades = 0
+    n_wins = n_losses = 0
+    gross_win = gross_loss = 0.0
     for is_slice, oos_slice in windows:
         is_bars, oos_bars = bars.iloc[is_slice], bars.iloc[oos_slice]
         params = optimize_window(is_bars)  # IS only — never shown the OOS segment
@@ -80,6 +82,10 @@ def run_wfo(
         oos_sharpes.append(metrics_oos["sharpe"])
         oos_drawdowns.append(metrics_oos["max_drawdown"])
         oos_trades += int(metrics_oos["n_trades"])
+        n_wins += int(metrics_oos.get("n_wins", 0))
+        n_losses += int(metrics_oos.get("n_losses", 0))
+        gross_win += float(metrics_oos.get("gross_win", 0.0))
+        gross_loss += float(metrics_oos.get("gross_loss", 0.0))
 
     mean_is = mean(is_return_per_bar)
     wfe = mean(oos_return_per_bar) / mean_is if mean_is > 0 else 0.0
@@ -92,6 +98,7 @@ def run_wfo(
             max(oos_drawdowns), float(wfo_cfg["max_oos_drawdown_pct"]), at_least=False
         ),
     }
+    decided = n_wins + n_losses
     results = {
         "strategy": strategy_name,
         "generated_at": datetime.now(tz=UTC).isoformat(),
@@ -99,6 +106,15 @@ def run_wfo(
         "gates": gates,
         "cleared_for_paper": all(g["passed"] for g in gates.values()),
         "data_source": config["data"]["data_source"],
+        # measured OOS trade distribution — THE source for strategy.stats
+        # (Kelly inputs); dollar-based, only the avg_win/avg_loss RATIO matters
+        "oos_trade_stats": {
+            "n_wins": n_wins,
+            "n_losses": n_losses,
+            "win_rate": n_wins / decided if decided else 0.0,
+            "avg_win": gross_win / n_wins if n_wins else 0.0,
+            "avg_loss": gross_loss / n_losses if n_losses else 0.0,
+        },
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     out_path = output_dir / f"{strategy_name}_{datetime.now(tz=UTC):%Y%m%d_%H%M%S}.yaml"

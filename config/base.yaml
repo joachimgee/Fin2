@@ -113,6 +113,11 @@ screener:                         # 12k Alpaca assets -> point-in-time universe
   max_per_sector: 8
   rebalance: weekly
 
+universe_builder:                 # scripts/build_universe.py (mechanical universe)
+  top_n: 100                      # universe size, ranked by median dollar volume
+  min_days: 55                    # bars required inside the ranking window
+  batch_size: 150                 # symbols per multi-bars request (10k rows/page)
+
 monitoring:
   log_level: INFO
   daily_report_time_et: "16:05"
