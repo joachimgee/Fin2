@@ -19,12 +19,12 @@ test-arch:
 
 check: lint typecheck test
 
-# --- Trading workflows ---
+# --- Trading workflows (module form: repo root must be on sys.path) ---
 data-sync:
-	python3 scripts/sync_data.py
+	python3 -m scripts.sync_data
 
 wfo:
-	python3 scripts/run_backtest.py --strategy $(S)
+	python3 -m scripts.run_backtest --strategy $(S)
 
 paper-trade:
-	python3 scripts/run_paper.py --strategy $(S)
+	python3 -m scripts.run_paper --strategy $(S)
