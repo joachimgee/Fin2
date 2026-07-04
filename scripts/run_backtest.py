@@ -29,18 +29,26 @@ from src.risk.circuit_breaker import CircuitBreaker
 from src.risk.exposure_tracker import ExposureTracker
 from src.risk.manager import RiskManager
 from src.shared.config import load_config
+from src.shared.exceptions import ConfigError
 from src.signals.features import compute_features
 from src.signals.lgbm_signal import LightGBMSignalGenerator
+from src.signals.zscore_signal import ZScoreSignalGenerator
+from src.strategies.base import AbstractStrategy
+from src.strategies.mean_reversion import MeanReversionZScore
 from src.strategies.momentum_lightgbm import MomentumLightGBM
 
 from scripts.train_lgbm import train_lgbm_artifacts
 
 log = logging.getLogger(__name__)
 
+STRATEGIES = ("momentum_lightgbm", "mean_reversion")
+
 
 def make_window_runners(
-    config: dict[str, Any], all_bars: pd.DataFrame, work_dir: Path
+    config: dict[str, Any], all_bars: pd.DataFrame, work_dir: Path, strategy_name: str
 ) -> tuple[Any, Any]:
+    if strategy_name not in STRATEGIES:
+        raise ConfigError(f"unknown strategy {strategy_name!r} — one of {STRATEGIES}")
     warmup = int(config["strategy"]["warmup_bars"])
     day_list = sorted(all_bars["timestamp"].unique())
     day_position = {day: i for i, day in enumerate(day_list)}
@@ -58,20 +66,30 @@ def make_window_runners(
         return all_bars[mask].sort_values("timestamp"), span_start
 
     def optimize_window(is_days: pd.DataFrame) -> dict[str, Any]:
-        """TRUE WFO step: retrain the model on THIS window's IS bars only."""
+        """TRUE WFO step: retrain the model on THIS window's IS bars only.
+        mean_reversion is rule-based — nothing is fitted, by design: its WFE
+        is then a pure robustness check of fixed YAML parameters."""
+        if strategy_name == "mean_reversion":
+            return {}
         window_bars, train_start = bars_with_lead_in(is_days)
         artifact_dir = work_dir / f"window_{next(window_ids)}"
         train_lgbm_artifacts(window_bars, config, artifact_dir, train_start=train_start)
         return {"artifact_dir": artifact_dir}
+
+    def build_strategy(params: dict[str, Any]) -> AbstractStrategy:
+        if strategy_name == "mean_reversion":
+            clip = float(config["strategy"]["mean_reversion"]["zscore_clip"])
+            return MeanReversionZScore(config, ZScoreSignalGenerator(clip), features_fn)
+        return MomentumLightGBM(
+            config, LightGBMSignalGenerator(params["artifact_dir"]), features_fn
+        )
 
     def evaluate_window(days: pd.DataFrame, params: dict[str, Any]) -> dict[str, float]:
         run_bars, trade_start = bars_with_lead_in(days)
         tracker = ExposureTracker()
         breaker = CircuitBreaker(config["risk"]["circuit_breakers"], on_trip=lambda r, v: None)
         risk = RiskManager(config, tracker, breaker, dict(config["strategy"]["stats"]))
-        strategy = MomentumLightGBM(
-            config, LightGBMSignalGenerator(params["artifact_dir"]), features_fn
-        )
+        strategy = build_strategy(params)
         engine = BacktestEngine(
             strategy,
             risk,
@@ -119,7 +137,9 @@ def main() -> None:
     # windows are sliced over trading DAYS — one row per unique timestamp
     days = pd.DataFrame({"timestamp": sorted(all_bars["timestamp"].unique())})
     work_dir = Path(args.output_dir) / f"wfo_models_{datetime.now(tz=UTC):%Y%m%d_%H%M%S}"
-    optimize_window, evaluate_window = make_window_runners(config, all_bars, work_dir)
+    optimize_window, evaluate_window = make_window_runners(
+        config, all_bars, work_dir, args.strategy
+    )
     results = run_wfo(
         days, config, optimize_window, evaluate_window, args.strategy, Path(args.output_dir)
     )
