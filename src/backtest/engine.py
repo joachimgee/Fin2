@@ -172,8 +172,14 @@ class BacktestEngine:
                     orders.append({"timestamp": bar.timestamp, **order})
             self._broker.mark(bar)
             if not in_lead_in:  # metrics cover the evaluation span only
-                equity_curve.append(self._broker.equity())
-                timestamps.append(bar.timestamp)
+                # ONE equity point per timestamp (multi-symbol frames carry N
+                # rows per day — per-row points would distort Sharpe scaling)
+                equity = self._broker.equity()
+                if timestamps and timestamps[-1] == bar.timestamp:
+                    equity_curve[-1] = equity
+                else:
+                    equity_curve.append(equity)
+                    timestamps.append(bar.timestamp)
         return self._results(pd.Series(equity_curve, index=timestamps), pnls, orders)
 
     def _results(

@@ -9,6 +9,7 @@ data:
   data_source: polygon    # never yfinance for backtests (survivorship bias)
   db_path: data/trading.duckdb
   timeframe: "1Day"
+  sync_pause_s: 13        # free Polygon tier: 5 requests/minute
 
 risk:
   kelly_fraction: 0.25            # quarter-Kelly default; hard cap 0.50 enforced in code
@@ -37,7 +38,9 @@ backtest:
   periods_per_year: 252
 
 strategy:
-  universe: [SPY]
+  # liquid mega-caps/ETFs — hand-picked until the screener runs on paid data
+  universe: [SPY, QQQ, AAPL, MSFT, NVDA, AMZN, GOOGL, META, TSLA, JPM,
+             V, UNH, XOM, HD, PG, AVGO, LLY, COST, MRK, DIS]
   signal_threshold: 0.2
   warmup_bars: 80                 # must exceed the longest feature window + shift
   hostile_regimes: []             # HMM states in which NEW entries are blocked

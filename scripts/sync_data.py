@@ -24,13 +24,17 @@ async def sync(args: argparse.Namespace) -> None:
     storage = BarStorage(Path(config["data"]["db_path"]))
     start = datetime.fromisoformat(args.start).replace(tzinfo=UTC)
     end = datetime.fromisoformat(args.end).replace(tzinfo=UTC)
-    for symbol in config["strategy"]["universe"]:
+    universe = list(config["strategy"]["universe"])
+    pause_s = float(config["data"]["sync_pause_s"])
+    for i, symbol in enumerate(universe):
         bars = await client.fetch_bars(symbol, start, end, str(config["data"]["timeframe"]))
         rows = storage.insert_bars(bars)
         log.info(
             "data_synced",
             extra={"symbol": symbol, "rows": rows, "start": args.start, "end": args.end},
         )
+        if i < len(universe) - 1:
+            await asyncio.sleep(pause_s)  # free-tier rate limit courtesy
 
 
 def main() -> None:

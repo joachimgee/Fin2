@@ -59,6 +59,8 @@ class MomentumLightGBM(AbstractStrategy):
             return None
         buffer = self._bars.setdefault(bar.symbol, [])
         buffer.append(bar)
+        if len(buffer) > self._warmup:  # features only need warmup bars — O(warmup) not O(n)
+            del buffer[: len(buffer) - self._warmup]
         if len(buffer) < self._warmup:
             return None
         features = self._features(buffer)
