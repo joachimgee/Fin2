@@ -62,6 +62,32 @@ async def test_slippage_and_commission_applied(base_config: dict[str, Any]) -> N
     assert results["total_commission"] == pytest.approx(20.0)  # 10 shares x $1, both legs
 
 
+async def test_win_loss_tallies_hand_computed(base_config: dict[str, Any]) -> None:
+    """Round-trip 1: buy@96 sell@107 -> +110 (win). Round-trip 2: buy@98,
+    sell signal at c106 but next open gaps to 92 -> (92-98)*10 = -60 (loss)."""
+    prices = [
+        (100.0, 100.0),
+        (100.0, 95.0),  # buy signal
+        (96.0, 100.0),  # fill @96
+        (101.0, 106.0),  # sell signal
+        (107.0, 107.0),  # fill @107 -> +110
+        (100.0, 95.0),  # buy signal
+        (98.0, 100.0),  # fill @98
+        (101.0, 106.0),  # sell signal
+        (92.0, 92.0),  # fill @92 -> -60
+    ]
+    config = frictionless(base_config)
+    risk = PassThroughRisk()
+    strategy = BuyLowSellHigh(config, NullGen())
+    engine = BacktestEngine(
+        strategy, risk, risk.tracker, SimulatedBroker(config), bars_frame(prices), config
+    )  # type: ignore[arg-type]
+    results = await engine.run()
+    assert (results["n_wins"], results["n_losses"]) == (1, 1)
+    assert results["gross_win"] == pytest.approx(110.0)
+    assert results["gross_loss"] == pytest.approx(60.0)
+
+
 async def test_rejected_intent_never_fills(base_config: dict[str, Any]) -> None:
     engine, strategy = _engine(frictionless(base_config), HaltedRisk())
     results = await engine.run()

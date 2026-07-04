@@ -187,11 +187,19 @@ class BacktestEngine:
     ) -> dict[str, Any]:
         returns = equity.pct_change()
         total_return = float(equity.iloc[-1] / equity.iloc[0] - 1.0) if len(equity) else 0.0
+        wins = [p for p in pnls if p > 0.0]
+        losses = [p for p in pnls if p < 0.0]
         results = {
             "sharpe": sharpe_ratio(returns, self._periods_per_year),
             "max_drawdown": max_drawdown(equity),
             "profit_factor": profit_factor(pnls),
             "n_trades": len(pnls),
+            # raw win/loss tallies — WFO aggregates them across OOS windows
+            # into the Kelly inputs (strategy.stats: win_rate/avg_win/avg_loss)
+            "n_wins": len(wins),
+            "n_losses": len(losses),
+            "gross_win": float(sum(wins)),
+            "gross_loss": float(abs(sum(losses))),
             "total_return": total_return,
             "total_commission": self._broker.total_commission,
             "equity_curve": equity,

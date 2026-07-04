@@ -44,9 +44,12 @@ strategy:
   signal_threshold: 0.2
   warmup_bars: 80                 # must exceed the longest feature window + shift
   hostile_regimes: []             # HMM states in which NEW entries are blocked
-  stats:                          # Kelly inputs — update from the latest WFO OOS results
-    win_rate: 0.55
-    avg_win: 1.5
+  stats:                          # Kelly inputs — MEASURED, never hand-set.
+    # Source: mean_reversion WFO 2026-07-04, 20-symbol universe, 305 OOS
+    # trades: win_rate 0.626, avg_win $78.86 / avg_loss $87.14 (ratio 0.905).
+    # Rounded DOWN — sizing errs small. Refresh after every clearing WFO.
+    win_rate: 0.62
+    avg_win: 0.90
     avg_loss: 1.0
   mean_reversion:                 # rule-based family (src/strategies/mean_reversion.py)
     entry_signal: 0.5             # signal = -zscore/zscore_clip -> 0.5 means z <= -1.5
@@ -112,6 +115,11 @@ screener:                         # 12k Alpaca assets -> point-in-time universe
   universe_size: 30
   max_per_sector: 8
   rebalance: weekly
+
+universe_builder:                 # scripts/build_universe.py (mechanical universe)
+  top_n: 100                      # universe size, ranked by median dollar volume
+  min_days: 55                    # bars required inside the ranking window
+  batch_size: 150                 # symbols per multi-bars request (10k rows/page)
 
 monitoring:
   log_level: INFO

@@ -66,6 +66,7 @@ _SCHEMA: dict[str, set[str]] = {
         "max_per_sector",
         "rebalance",
     },
+    "universe_builder": {"top_n", "min_days", "batch_size"},
     "stream": {"reconnect_backoff_initial_s", "reconnect_backoff_cap_s"},
     "llm": {"provider", "finbert_model", "model", "max_tokens", "cache_ttl_s"},
     "monitoring": {"log_level", "daily_report_time_et", "alert_timeout_s"},
@@ -126,6 +127,22 @@ def require_env(name: str) -> str:
     if not value:
         raise ConfigError(f"required environment variable not set: {name}")
     return value
+
+
+def load_universe(path: str | None) -> list[str] | None:
+    """Load a universe override file (scripts/build_universe.py output).
+
+    None in -> None out (caller falls back to strategy.universe). The file
+    must contain a non-empty 'universe' list or the run stops — silently
+    trading the default universe instead of the requested one is not an option.
+    """
+    if path is None:
+        return None
+    loaded = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    universe = loaded.get("universe") if isinstance(loaded, dict) else None
+    if not isinstance(universe, list) or not universe:
+        raise ConfigError(f"{path}: expected a non-empty 'universe' list")
+    return [str(s) for s in universe]
 
 
 def _check_nested(path: Path, where: str, mapping: Any, allowed: set[str]) -> None:

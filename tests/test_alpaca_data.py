@@ -126,3 +126,89 @@ async def test_empty_bars_page_returns_no_bars() -> None:
     recorder = _Recorder([httpx.Response(200, json={"bars": None, "next_page_token": None})])
     bars = await _client(recorder).fetch_bars("SPY", START, END)
     assert bars == []
+
+
+# --- fetch_bars_multi (universe scans) --------------------------------------------
+
+
+def _multi_payload(
+    bars_by_symbol: dict[str, list[dict[str, Any]]], next_page_token: str | None = None
+) -> dict[str, Any]:
+    return {"bars": bars_by_symbol, "next_page_token": next_page_token}
+
+
+async def test_multi_maps_symbols_and_sends_symbols_param() -> None:
+    recorder = _Recorder(
+        [
+            httpx.Response(
+                200,
+                json=_multi_payload({"AAA": [_row()], "BBB": [_row(c=50.0, o=50.0, l=49.0)]}),
+            )
+        ]
+    )
+    bars = await _client(recorder).fetch_bars_multi(["AAA", "BBB"], START, END)
+    assert set(bars) == {"AAA", "BBB"}
+    assert bars["AAA"][0].symbol == "AAA"
+    assert bars["BBB"][0].close == 50.0
+    request = recorder.requests[0]
+    assert request.url.params["symbols"] == "AAA,BBB"
+    assert request.url.params["adjustment"] == "all"
+    assert str(request.url).split("?")[0].endswith("/v2/stocks/bars")
+
+
+async def test_multi_paginates_and_merges_pages() -> None:
+    recorder = _Recorder(
+        [
+            httpx.Response(200, json=_multi_payload({"AAA": [_row()]}, next_page_token="tok")),
+            httpx.Response(200, json=_multi_payload({"AAA": [_row(t="2016-01-05T05:00:00Z")]})),
+        ]
+    )
+    bars = await _client(recorder).fetch_bars_multi(["AAA"], START, END)
+    assert len(bars["AAA"]) == 2
+    assert recorder.requests[1].url.params["page_token"] == "tok"
+
+
+async def test_multi_skip_invalid_drops_bad_rows_only() -> None:
+    payload = _multi_payload({"AAA": [_row(c=-5.0), _row()], "BBB": [_row()]})
+    recorder = _Recorder([httpx.Response(200, json=payload)])
+    bars = await _client(recorder).fetch_bars_multi(["AAA", "BBB"], START, END, skip_invalid=True)
+    assert len(bars["AAA"]) == 1  # bad row dropped, good row kept
+    assert len(bars["BBB"]) == 1
+
+
+async def test_multi_strict_raises_on_invalid_bar() -> None:
+    payload = _multi_payload({"AAA": [_row(c=-5.0)]})
+    recorder = _Recorder([httpx.Response(200, json=payload)])
+    with pytest.raises(DataValidationError):
+        await _client(recorder).fetch_bars_multi(["AAA"], START, END)
+
+
+# --- fetch_active_symbols (trading API metadata) ----------------------------------
+
+
+def _asset(symbol: str, exchange: str = "NYSE", tradable: bool = True) -> dict[str, Any]:
+    return {"symbol": symbol, "exchange": exchange, "tradable": tradable}
+
+
+async def test_active_symbols_filters_exchange_tradable_and_plain_symbols() -> None:
+    recorder = _Recorder(
+        [
+            httpx.Response(
+                200,
+                json=[
+                    _asset("AAA"),
+                    _asset("BBB", exchange="NASDAQ"),
+                    _asset("OTC1", exchange="OTC"),  # wrong exchange
+                    _asset("CCC", tradable=False),  # not tradable
+                    _asset("BRK.A"),  # dotted class share — excluded
+                    _asset("TOOLONGX"),  # > 5 chars — excluded
+                ],
+            )
+        ]
+    )
+    symbols = await _client(recorder).fetch_active_symbols(["NYSE", "NASDAQ"])
+    assert symbols == ["AAA", "BBB"]
+    request = recorder.requests[0]
+    assert request.url.params["status"] == "active"
+    assert request.url.params["asset_class"] == "us_equity"
+    assert request.headers["APCA-API-KEY-ID"] == "test-key"
