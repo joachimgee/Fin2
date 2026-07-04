@@ -91,6 +91,9 @@ _FEATURE_KEYS: set[str] = {
 _STRATEGY_STATS_KEYS: set[str] = {"win_rate", "avg_win", "avg_loss"}
 _TRAINING_KEYS: set[str] = {
     "label_horizon_bars",
+    "label_pt_mult",
+    "label_sl_mult",
+    "label_vol_span",
     "train_frac",
     "valid_frac",
     "n_estimators",
