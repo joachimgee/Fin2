@@ -74,7 +74,10 @@ signals:
     mfi_window: 14
     volume_window: 20
   training:            # offline training scripts (scripts/train_*.py)
-    label_horizon_bars: 5
+    label_horizon_bars: 10   # triple-barrier vertical barrier (expiry)
+    label_pt_mult: 1.5       # take-profit width in EWMA-sigma units
+    label_sl_mult: 1.0       # stop width — 1.5:1.0 mirrors strategy.stats payoff
+    label_vol_span: 20       # EWMA span of the sigma estimate
     train_frac: 0.70
     valid_frac: 0.15
     n_estimators: 300

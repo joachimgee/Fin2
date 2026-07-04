@@ -23,14 +23,9 @@ from sklearn.preprocessing import StandardScaler
 from src.data.storage import BarStorage
 from src.shared.config import load_config
 from src.signals.features import compute_features
+from src.signals.labels import ewma_volatility, triple_barrier_labels
 
 log = logging.getLogger(__name__)
-
-
-def make_labels(close: pd.Series, horizon_bars: int) -> pd.Series:
-    """1 if close rises over the next horizon_bars, else 0. Labels look
-    forward BY DESIGN — legitimate in training only, never as a feature."""
-    return (close.shift(-horizon_bars) > close).astype("float64")
 
 
 def temporal_split(n: int, train_frac: float, valid_frac: float) -> tuple[slice, slice, slice]:
@@ -59,7 +54,15 @@ def train_lgbm_artifacts(
     for _, symbol_bars in bars.groupby("symbol"):
         indexed = symbol_bars.sort_values("timestamp").set_index("timestamp")
         features = compute_features(indexed, config)
-        labels = make_labels(indexed["close"], t["label_horizon_bars"])
+        labels = triple_barrier_labels(
+            indexed["high"],
+            indexed["low"],
+            indexed["close"],
+            ewma_volatility(indexed["close"], t["label_vol_span"]),
+            t["label_pt_mult"],
+            t["label_sl_mult"],
+            t["label_horizon_bars"],
+        )
         frame = features.assign(_label=labels)
         if train_start is not None:
             frame = frame[frame.index >= train_start]
@@ -99,6 +102,9 @@ def train_lgbm_artifacts(
                 "symbols": sorted(bars["symbol"].unique().tolist()),
                 "training_period": [str(x_all.index[tr][0]), str(x_all.index[tr][-1])],
                 "label_horizon_bars": t["label_horizon_bars"],
+                "label_pt_mult": t["label_pt_mult"],
+                "label_sl_mult": t["label_sl_mult"],
+                "label_vol_span": t["label_vol_span"],
                 "metrics": metrics,
                 "data_source": config["data"]["data_source"],
             }
