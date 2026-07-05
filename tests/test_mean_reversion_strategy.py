@@ -33,6 +33,8 @@ def _config(base_config: dict[str, Any]) -> dict[str, Any]:
             "exit_signal": 0.0,
             "max_hold_bars": 2,
             "zscore_clip": 3.0,
+            "sentiment_veto": -0.3,
+            "sentiment_lookback_days": 3,
         },
     }
     return config
@@ -140,6 +142,40 @@ def test_foreign_symbol_ignored(base_config: dict[str, Any]) -> None:
     strategy = _strategy(base_config, [1.0])
     for i in range(5):
         assert strategy.on_bar(_bar(i, symbol="TSLA")) is None
+
+
+def test_sentiment_veto_blocks_entry_but_never_exit(base_config: dict[str, Any]) -> None:
+    strategy = MeanReversionZScore(
+        _config(base_config),
+        ScriptedGen([0.9, 0.9, 0.3, 0.3]),
+        _finite_features,
+        sentiment_fn=lambda symbol, ts: -0.8,  # very negative news, always
+    )
+    _feed(strategy, 2)
+    assert strategy.on_bar(_bar(2)) is None  # oversold but vetoed — no knife-catching
+    assert strategy.on_bar(_bar(3)) is None  # still vetoed
+    _fill_buy(strategy)  # position acquired anyway (e.g. pre-existing)
+    strategy.on_bar(_bar(4))  # held 1 bar
+    exit_intent = strategy.on_bar(_bar(5))  # time stop at held 2
+    assert exit_intent is not None  # exit NEVER vetoed
+    assert exit_intent.side == "sell"
+
+
+def test_neutral_sentiment_does_not_veto(base_config: dict[str, Any]) -> None:
+    strategy = MeanReversionZScore(
+        _config(base_config),
+        ScriptedGen([0.9]),
+        _finite_features,
+        sentiment_fn=lambda symbol, ts: 0.0,  # no news = neutral, no veto
+    )
+    _feed(strategy, 2)
+    assert strategy.on_bar(_bar(2)) is not None
+
+
+def test_no_sentiment_fn_means_no_veto(base_config: dict[str, Any]) -> None:
+    strategy = _strategy(base_config, [0.9])  # baseline: sentiment_fn=None
+    _feed(strategy, 2)
+    assert strategy.on_bar(_bar(2)) is not None
 
 
 def test_reset_clears_state(base_config: dict[str, Any]) -> None:

@@ -41,11 +41,40 @@ from scripts.train_lgbm import train_lgbm_artifacts
 
 log = logging.getLogger(__name__)
 
-STRATEGIES = ("momentum_lightgbm", "mean_reversion")
+STRATEGIES = ("momentum_lightgbm", "mean_reversion", "mean_reversion_sentiment")
+
+
+def build_sentiment_fn(sentiment_by_symbol: dict[str, pd.DataFrame], lookback_days: int) -> Any:
+    """Lagged lookup: most recent stored news day STRICTLY BEFORE the bar's
+    UTC date, at most lookback_days back (weekend gap coverage). No stored
+    day in range -> 0.0 neutral, no veto. Strict inequality = the same
+    anti-lookahead stance as the feature shift chokepoint."""
+    series = {
+        symbol: frame.assign(date=pd.to_datetime(frame["date"]).dt.date).set_index("date")["score"]
+        for symbol, frame in sentiment_by_symbol.items()
+        if len(frame)
+    }
+
+    def lookup(symbol: str, timestamp: Any) -> float:
+        scores = series.get(symbol)
+        if scores is None:
+            return 0.0
+        bar_date = timestamp.date()
+        window = scores[
+            (scores.index < bar_date)
+            & (scores.index >= bar_date - pd.Timedelta(days=lookback_days))
+        ]
+        return float(window.iloc[-1]) if len(window) else 0.0
+
+    return lookup
 
 
 def make_window_runners(
-    config: dict[str, Any], all_bars: pd.DataFrame, work_dir: Path, strategy_name: str
+    config: dict[str, Any],
+    all_bars: pd.DataFrame,
+    work_dir: Path,
+    strategy_name: str,
+    sentiment_by_symbol: dict[str, pd.DataFrame] | None = None,
 ) -> tuple[Any, Any]:
     if strategy_name not in STRATEGIES:
         raise ConfigError(f"unknown strategy {strategy_name!r} — one of {STRATEGIES}")
@@ -67,9 +96,9 @@ def make_window_runners(
 
     def optimize_window(is_days: pd.DataFrame) -> dict[str, Any]:
         """TRUE WFO step: retrain the model on THIS window's IS bars only.
-        mean_reversion is rule-based — nothing is fitted, by design: its WFE
-        is then a pure robustness check of fixed YAML parameters."""
-        if strategy_name == "mean_reversion":
+        mean_reversion* are rule-based — nothing is fitted, by design: their
+        WFE is then a pure robustness check of fixed YAML parameters."""
+        if strategy_name.startswith("mean_reversion"):
             return {}
         window_bars, train_start = bars_with_lead_in(is_days)
         artifact_dir = work_dir / f"window_{next(window_ids)}"
@@ -77,9 +106,19 @@ def make_window_runners(
         return {"artifact_dir": artifact_dir}
 
     def build_strategy(params: dict[str, Any]) -> AbstractStrategy:
-        if strategy_name == "mean_reversion":
-            clip = float(config["strategy"]["mean_reversion"]["zscore_clip"])
-            return MeanReversionZScore(config, ZScoreSignalGenerator(clip), features_fn)
+        if strategy_name.startswith("mean_reversion"):
+            mr_cfg = config["strategy"]["mean_reversion"]
+            sentiment_fn = None
+            if strategy_name == "mean_reversion_sentiment":
+                sentiment_fn = build_sentiment_fn(
+                    sentiment_by_symbol or {}, int(mr_cfg["sentiment_lookback_days"])
+                )
+            return MeanReversionZScore(
+                config,
+                ZScoreSignalGenerator(float(mr_cfg["zscore_clip"])),
+                features_fn,
+                sentiment_fn=sentiment_fn,
+            )
         return MomentumLightGBM(
             config, LightGBMSignalGenerator(params["artifact_dir"]), features_fn
         )
@@ -148,8 +187,18 @@ def main() -> None:
     # windows are sliced over trading DAYS — one row per unique timestamp
     days = pd.DataFrame({"timestamp": sorted(all_bars["timestamp"].unique())})
     work_dir = Path(args.output_dir) / f"wfo_models_{datetime.now(tz=UTC):%Y%m%d_%H%M%S}"
+    sentiment_by_symbol = None
+    if args.strategy == "mean_reversion_sentiment":
+        sentiment_by_symbol = {
+            symbol: storage.get_daily_sentiment(symbol) for symbol in config["strategy"]["universe"]
+        }
+        empty = [s for s, f in sentiment_by_symbol.items() if not len(f)]
+        if empty:  # veto silently disabled for a symbol = a lie in the results
+            raise ConfigError(
+                f"no news_sentiment stored for {empty} — run scripts.score_news first"
+            )
     optimize_window, evaluate_window = make_window_runners(
-        config, all_bars, work_dir, args.strategy
+        config, all_bars, work_dir, args.strategy, sentiment_by_symbol
     )
     results = run_wfo(
         days, config, optimize_window, evaluate_window, args.strategy, Path(args.output_dir)

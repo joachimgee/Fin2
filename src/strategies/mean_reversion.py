@@ -15,6 +15,7 @@ quantity — reducing orders pass through risk unchanged.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -25,6 +26,10 @@ from src.shared.interfaces import SignalGenerator
 from src.strategies.base import AbstractStrategy, OrderIntent
 
 FeaturesFn = Callable[[pd.DataFrame], pd.DataFrame]
+# (symbol, bar timestamp) -> LAGGED news sentiment in [-1, 1]; the composition
+# root guarantees the value only aggregates headlines STRICTLY BEFORE the
+# bar's date (same anti-lookahead stance as the feature shift chokepoint).
+SentimentFn = Callable[[str, datetime], float]
 
 _STRATEGY_ID = "mean_reversion"
 
@@ -35,6 +40,7 @@ class MeanReversionZScore(AbstractStrategy):
         config: dict[str, Any],
         signal_generator: SignalGenerator,
         features_fn: FeaturesFn,
+        sentiment_fn: SentimentFn | None = None,
     ) -> None:
         super().__init__(config, signal_generator)
         strategy_cfg = config["strategy"]
@@ -44,6 +50,8 @@ class MeanReversionZScore(AbstractStrategy):
         self._entry_signal = float(mr_cfg["entry_signal"])
         self._exit_signal = float(mr_cfg["exit_signal"])
         self._max_hold = int(mr_cfg["max_hold_bars"])
+        self._sentiment_veto = float(mr_cfg["sentiment_veto"])
+        self._sentiment_fn = sentiment_fn
         self._features_fn = features_fn
         self._bars: dict[str, list[Bar]] = {}
         self._positions: dict[str, float] = {}
@@ -108,6 +116,13 @@ class MeanReversionZScore(AbstractStrategy):
     def _decide(self, bar: Bar, signal: float) -> OrderIntent | None:
         held = self._positions.get(bar.symbol, 0.0)
         if held == 0.0:
+            # sentiment veto gates NEW entries only — exits always stay possible.
+            # A dip on very negative news is real bad news, not a technical dip.
+            if (
+                self._sentiment_fn is not None
+                and self._sentiment_fn(bar.symbol, bar.timestamp) < self._sentiment_veto
+            ):
+                return None
             if signal >= self._entry_signal:
                 return OrderIntent(
                     symbol=bar.symbol,
