@@ -105,6 +105,12 @@ class RiskManager:
         self._breaker.on_equity_update(self._tracker.equity)
         return realized
 
+    def on_new_day(self, equity: float) -> None:
+        """Trading-day boundary — called by both engines at the first bar of
+        every session. Settles the losing-days streak and arms the daily-loss
+        breaker with the session's opening equity."""
+        self._breaker.start_of_day(equity)
+
     # --- pipeline steps ---------------------------------------------------------
 
     def _is_reducing(self, intent: OrderIntent) -> bool:

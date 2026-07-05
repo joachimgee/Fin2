@@ -31,7 +31,13 @@ Return 0.0 (do not trade) if edge ≤ 0 or avg_loss ≤ 0.
 Three independent breakers. Any one halts all new orders.
   daily_loss_pct:       P&L < −3% of start-of-day equity
   max_drawdown_pct:     equity < 85% of peak equity
-  consecutive_losses:   5 losing trades in a row
+  consecutive_losses:   5 consecutive losing DAYS (day = sum of realized P&L
+                        of trades closed that day; no-trade days don't count).
+                        Day-based, NOT fill-based: a rotating multi-position
+                        portfolio realizes several losing fills in one red
+                        day — that is daily_loss territory, not a streak.
+Both engines call risk.on_new_day(equity) at every trading-day boundary —
+it settles the losing-days streak and arms the daily-loss breaker.
 
 When tripped:
   ✓ Set _trading_halted = True

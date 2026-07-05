@@ -53,6 +53,7 @@ _SCHEMA: dict[str, set[str]] = {
         "hostile_regimes",
         "stats",
         "mean_reversion",
+        "cross_sectional",
     },
     "screener": {
         "exchanges",
@@ -107,6 +108,13 @@ _STRATEGY_STATS_KEYS: set[str] = {"win_rate", "avg_win", "avg_loss"}
 _MEAN_REVERSION_KEYS: set[str] = {
     "entry_signal",
     "exit_signal",
+    "max_hold_bars",
+    "zscore_clip",
+    "sentiment_veto",
+    "sentiment_lookback_days",
+}
+_CROSS_SECTIONAL_KEYS: set[str] = {
+    "top_n",
     "max_hold_bars",
     "zscore_clip",
     "sentiment_veto",
@@ -206,6 +214,12 @@ def load_config(path: Path) -> dict[str, Any]:
         "strategy.mean_reversion",
         strategy.get("mean_reversion", {}),
         _MEAN_REVERSION_KEYS,
+    )
+    _check_nested(
+        path,
+        "strategy.cross_sectional",
+        strategy.get("cross_sectional", {}),
+        _CROSS_SECTIONAL_KEYS,
     )
 
     kelly = risk.get("kelly_fraction")

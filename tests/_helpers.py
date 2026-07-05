@@ -55,12 +55,16 @@ class PassThroughRisk:
 
     def __init__(self) -> None:
         self.tracker = ExposureTracker()
+        self.days_opened: list[float] = []
 
     def validate(self, intent: OrderIntent) -> Any:
         return SimpleNamespace(approved=True, adjusted_qty=intent.qty, reason="ok")
 
     def on_fill(self, fill: dict[str, Any]) -> float:
         return self.tracker.on_fill(fill)
+
+    def on_new_day(self, equity: float) -> None:
+        self.days_opened.append(equity)
 
 
 class HaltedRisk(PassThroughRisk):

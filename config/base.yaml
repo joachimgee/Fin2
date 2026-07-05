@@ -59,6 +59,12 @@ strategy:
     sentiment_veto: -0.3          # block NEW entries when lagged FinBERT < this.
                                   # A PRIORI value — never grid-searched (overfitting).
     sentiment_lookback_days: 3    # most recent news day within N days strictly before
+  cross_sectional:                # rank-based reversal (src/strategies/xsec_reversion.py)
+    top_n: 10                     # hold the N most oversold of the cross-section
+    max_hold_bars: 10             # same time stop as the time-series family
+    zscore_clip: 3.0              # signal normalization (ZScoreSignalGenerator)
+    sentiment_veto: -0.3          # same a-priori veto — never grid-searched
+    sentiment_lookback_days: 3
 
 signals:
   features:            # every window/threshold used by src/signals/features.py

@@ -36,12 +36,19 @@ from src.signals.zscore_signal import ZScoreSignalGenerator
 from src.strategies.base import AbstractStrategy
 from src.strategies.mean_reversion import MeanReversionZScore
 from src.strategies.momentum_lightgbm import MomentumLightGBM
+from src.strategies.xsec_reversion import CrossSectionalReversion
 
 from scripts.train_lgbm import train_lgbm_artifacts
 
 log = logging.getLogger(__name__)
 
-STRATEGIES = ("momentum_lightgbm", "mean_reversion", "mean_reversion_sentiment")
+STRATEGIES = (
+    "momentum_lightgbm",
+    "mean_reversion",
+    "mean_reversion_sentiment",
+    "xsec_reversion",
+    "xsec_reversion_sentiment",
+)
 
 
 def build_sentiment_fn(sentiment_by_symbol: dict[str, pd.DataFrame], lookback_days: int) -> Any:
@@ -96,9 +103,9 @@ def make_window_runners(
 
     def optimize_window(is_days: pd.DataFrame) -> dict[str, Any]:
         """TRUE WFO step: retrain the model on THIS window's IS bars only.
-        mean_reversion* are rule-based — nothing is fitted, by design: their
-        WFE is then a pure robustness check of fixed YAML parameters."""
-        if strategy_name.startswith("mean_reversion"):
+        The reversion families are rule-based — nothing is fitted, by design:
+        their WFE is then a pure robustness check of fixed YAML parameters."""
+        if strategy_name != "momentum_lightgbm":
             return {}
         window_bars, train_start = bars_with_lead_in(is_days)
         artifact_dir = work_dir / f"window_{next(window_ids)}"
@@ -106,21 +113,23 @@ def make_window_runners(
         return {"artifact_dir": artifact_dir}
 
     def build_strategy(params: dict[str, Any]) -> AbstractStrategy:
-        if strategy_name.startswith("mean_reversion"):
-            mr_cfg = config["strategy"]["mean_reversion"]
-            sentiment_fn = None
-            if strategy_name == "mean_reversion_sentiment":
-                sentiment_fn = build_sentiment_fn(
-                    sentiment_by_symbol or {}, int(mr_cfg["sentiment_lookback_days"])
-                )
-            return MeanReversionZScore(
-                config,
-                ZScoreSignalGenerator(float(mr_cfg["zscore_clip"])),
-                features_fn,
-                sentiment_fn=sentiment_fn,
+        if strategy_name == "momentum_lightgbm":
+            return MomentumLightGBM(
+                config, LightGBMSignalGenerator(params["artifact_dir"]), features_fn
             )
-        return MomentumLightGBM(
-            config, LightGBMSignalGenerator(params["artifact_dir"]), features_fn
+        section = "cross_sectional" if strategy_name.startswith("xsec") else "mean_reversion"
+        cfg = config["strategy"][section]
+        sentiment_fn = None
+        if strategy_name.endswith("_sentiment"):
+            sentiment_fn = build_sentiment_fn(
+                sentiment_by_symbol or {}, int(cfg["sentiment_lookback_days"])
+            )
+        cls = CrossSectionalReversion if strategy_name.startswith("xsec") else MeanReversionZScore
+        return cls(
+            config,
+            ZScoreSignalGenerator(float(cfg["zscore_clip"])),
+            features_fn,
+            sentiment_fn=sentiment_fn,
         )
 
     def evaluate_window(days: pd.DataFrame, params: dict[str, Any]) -> dict[str, float]:
@@ -188,7 +197,7 @@ def main() -> None:
     days = pd.DataFrame({"timestamp": sorted(all_bars["timestamp"].unique())})
     work_dir = Path(args.output_dir) / f"wfo_models_{datetime.now(tz=UTC):%Y%m%d_%H%M%S}"
     sentiment_by_symbol = None
-    if args.strategy == "mean_reversion_sentiment":
+    if args.strategy.endswith("_sentiment"):
         sentiment_by_symbol = {
             symbol: storage.get_daily_sentiment(symbol) for symbol in config["strategy"]["universe"]
         }

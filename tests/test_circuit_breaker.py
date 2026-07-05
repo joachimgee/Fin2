@@ -36,21 +36,44 @@ def test_drawdown_trips(breaker: CircuitBreaker) -> None:
     assert breaker.trading_halted
 
 
-def test_five_consecutive_losses_trip(breaker: CircuitBreaker) -> None:
-    for _ in range(4):
+def _losing_day(breaker: CircuitBreaker, n_trades: int = 1) -> None:
+    for _ in range(n_trades):
         breaker.on_trade_closed(-10.0)
+    breaker.start_of_day(100_000.0)  # boundary settles the finished day
+
+
+def test_five_consecutive_losing_days_trip(breaker: CircuitBreaker) -> None:
+    for _ in range(4):
+        _losing_day(breaker)
     assert not breaker.trading_halted
-    breaker.on_trade_closed(-10.0)
+    _losing_day(breaker)
     assert breaker.trading_halted
 
 
-def test_win_resets_loss_streak(breaker: CircuitBreaker) -> None:
-    for _ in range(4):
-        breaker.on_trade_closed(-10.0)
-    breaker.on_trade_closed(5.0)  # streak broken
-    for _ in range(4):
-        breaker.on_trade_closed(-10.0)
+def test_many_losing_fills_in_one_day_do_not_trip(breaker: CircuitBreaker) -> None:
+    # a rotating portfolio can realize many losses in ONE red day — that is
+    # the daily_loss breaker's territory, never a streak of days
+    _losing_day(breaker, n_trades=20)
     assert not breaker.trading_halted
+
+
+def test_positive_day_resets_streak(breaker: CircuitBreaker) -> None:
+    for _ in range(4):
+        _losing_day(breaker)
+    breaker.on_trade_closed(-10.0)
+    breaker.on_trade_closed(60.0)  # net positive day
+    breaker.start_of_day(100_000.0)
+    for _ in range(4):
+        _losing_day(breaker)
+    assert not breaker.trading_halted
+
+
+def test_day_without_trades_keeps_streak_frozen(breaker: CircuitBreaker) -> None:
+    for _ in range(4):
+        _losing_day(breaker)
+    breaker.start_of_day(100_000.0)  # idle day: no information, no reset
+    _losing_day(breaker)  # 5th losing day -> trip
+    assert breaker.trading_halted
 
 
 def test_no_auto_reset_on_new_day(breaker: CircuitBreaker) -> None:
@@ -64,11 +87,11 @@ def test_no_auto_reset_on_new_day(breaker: CircuitBreaker) -> None:
 
 def test_manual_reset_restores(breaker: CircuitBreaker) -> None:
     for _ in range(5):
-        breaker.on_trade_closed(-10.0)
+        _losing_day(breaker)
     assert breaker.trading_halted
     breaker.reset_circuit_breaker()
     assert not breaker.trading_halted
-    breaker.on_trade_closed(-10.0)  # streak was cleared too — one loss is fine
+    _losing_day(breaker)  # streak was cleared too — one losing day is fine
     assert not breaker.trading_halted
 
 
@@ -76,6 +99,6 @@ def test_trip_calls_injected_callback(
     breaker: CircuitBreaker, trips: list[tuple[str, dict[str, float]]]
 ) -> None:
     for _ in range(5):
-        breaker.on_trade_closed(-10.0)
+        _losing_day(breaker)
     assert [reason for reason, _ in trips] == ["consecutive_losses"]
     assert trips[0][1]["loss_streak"] == 5.0

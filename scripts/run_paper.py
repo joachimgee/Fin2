@@ -144,6 +144,7 @@ async def consume_bars(components: SimpleNamespace) -> None:
     pubsub = components.redis.pubsub()
     channels = [f"channel:bars:{s}" for s in components.strategy.universe]
     await pubsub.subscribe(*channels)
+    current_day = None
     async for message in pubsub.listen():
         if message.get("type") != "message":
             continue
@@ -158,6 +159,10 @@ async def consume_bars(components: SimpleNamespace) -> None:
             volume=int(payload["volume"]),
             vwap=payload.get("vwap"),
         )
+        if current_day != bar.timestamp.date():  # day boundary — as the backtest engine
+            current_day = bar.timestamp.date()
+            account = await components.broker.get_account()
+            components.risk.on_new_day(float(account["equity"]))
         intent = components.strategy.on_bar(bar)
         if intent is not None:
             await execute_intent(components.broker, components.risk, intent)

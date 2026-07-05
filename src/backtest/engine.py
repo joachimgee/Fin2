@@ -141,6 +141,7 @@ class BacktestEngine:
         timestamps: list[Any] = []
         pnls: list[float] = []
         orders: list[dict[str, Any]] = []
+        current_day: Any = None
         for row in self._bars.itertuples():
             bar = Bar(
                 symbol=str(row.symbol),
@@ -151,6 +152,9 @@ class BacktestEngine:
                 close=float(row.close),
                 volume=int(row.volume),
             )
+            if current_day != bar.timestamp:  # same live sequence: day boundary first
+                current_day = bar.timestamp
+                self._risk.on_new_day(self._broker.equity())
             in_lead_in = self._trade_start is not None and bar.timestamp < self._trade_start
             for fill in self._broker.fill_at_open(bar):
                 self._strategy.on_trade_update(fill)
