@@ -12,10 +12,13 @@ day D-1 — never against a partially-arrived cross-section of day D. With the
 feature shift(1) that means entries at D use prices <= D-2: conservative and
 structurally lookahead-safe.
 
-Rules (all a priori, never scanned): enter when the symbol is in the top-N
-target set (and the FinBERT veto allows); exit when it leaves the target set
-or after max_hold_bars. Exits are never vetoed. Entry qty is a placeholder —
-the RiskManager sizes every order.
+Rules (all a priori, never scanned): the target set is refreshed every
+rebalance_every_bars trading days (5 = the weekly cadence of Lehmann 1990,
+Quantpedia and ML4T reference implementations — daily rotation was measured
+to churn the edge away in frictions) and stays FROZEN in between. Enter when
+the symbol is in the target (and the FinBERT veto allows); exit when a
+refresh drops it from the target or after max_hold_bars. Exits are never
+vetoed. Entry qty is a placeholder — the RiskManager sizes every order.
 """
 
 from __future__ import annotations
@@ -47,6 +50,7 @@ class CrossSectionalReversion(AbstractStrategy):
         self._symbols = [str(s) for s in strategy_cfg["universe"]]
         self._warmup = int(strategy_cfg["warmup_bars"])
         self._top_n = int(xs_cfg["top_n"])
+        self._rebalance_every = int(xs_cfg["rebalance_every_bars"])
         self._max_hold = int(xs_cfg["max_hold_bars"])
         self._sentiment_veto = float(xs_cfg["sentiment_veto"])
         self._sentiment_fn = sentiment_fn
@@ -55,8 +59,9 @@ class CrossSectionalReversion(AbstractStrategy):
         self._positions: dict[str, float] = {}
         self._bars_held: dict[str, int] = {}
         self._current_day: Any = None
+        self._day_count = 0
         self._today_signals: dict[str, float] = {}
-        self._target: set[str] = set()  # top-N of the last COMPLETE day
+        self._target: set[str] = set()  # top-N frozen at the last rebalance
 
     @property
     def universe(self) -> list[str]:
@@ -95,21 +100,25 @@ class CrossSectionalReversion(AbstractStrategy):
         self._positions.clear()
         self._bars_held.clear()
         self._current_day = None
+        self._day_count = 0
         self._today_signals = {}
         self._target = set()
 
     # --- internals ----------------------------------------------------------------
 
     def _roll_day(self, timestamp: Any) -> None:
-        """First bar of a new day: yesterday's cross-section is now complete —
-        freeze its top-N as the target set for every decision made today."""
+        """First bar of a new day: yesterday's cross-section is now complete.
+        Refresh the target top-N only on rebalance days (bootstrap on the
+        first boundary, then every rebalance_every_bars); frozen in between."""
         if self._current_day is None:
             self._current_day = timestamp
             return
         if timestamp <= self._current_day:
             return
-        ranked = sorted(self._today_signals, key=lambda s: self._today_signals[s], reverse=True)
-        self._target = set(ranked[: self._top_n])
+        self._day_count += 1
+        if self._rebalance_every <= 1 or self._day_count % self._rebalance_every == 1:
+            ranked = sorted(self._today_signals, key=lambda s: self._today_signals[s], reverse=True)
+            self._target = set(ranked[: self._top_n])
         self._today_signals = {}
         self._current_day = timestamp
 
