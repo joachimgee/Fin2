@@ -104,7 +104,14 @@ _FEATURE_KEYS: set[str] = {
     "volume_window",
 }
 _STRATEGY_STATS_KEYS: set[str] = {"win_rate", "avg_win", "avg_loss"}
-_MEAN_REVERSION_KEYS: set[str] = {"entry_signal", "exit_signal", "max_hold_bars", "zscore_clip"}
+_MEAN_REVERSION_KEYS: set[str] = {
+    "entry_signal",
+    "exit_signal",
+    "max_hold_bars",
+    "zscore_clip",
+    "sentiment_veto",
+    "sentiment_lookback_days",
+}
 _TRAINING_KEYS: set[str] = {
     "label_horizon_bars",
     "label_pt_mult",
