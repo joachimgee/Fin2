@@ -31,6 +31,7 @@ def _config(base_config: dict[str, Any]) -> dict[str, Any]:
         "warmup_bars": 1,
         "cross_sectional": {
             "top_n": 2,
+            "rebalance_every_bars": 1,  # daily here — freeze behaviour tested separately
             "max_hold_bars": 3,
             "zscore_clip": 3.0,
             "sentiment_veto": -0.3,
@@ -138,6 +139,25 @@ def test_symbol_without_signal_absent_from_ranking(base_config: dict[str, Any]) 
     # day-2 ranking contains ONLY warm symbols {AAA .9, BBB .8} -> they are the target
     assert intents["AAA"] is not None and intents["BBB"] is not None
     assert intents["CCC"] is None and intents["DDD"] is None
+
+
+def test_weekly_freeze_ignores_mid_period_rankings(base_config: dict[str, Any]) -> None:
+    """rebalance_every_bars=2: the target from day 1 stays frozen through
+    day 3 even though day 2's ranking would rotate CCC in; day 4 (next
+    rebalance boundary) finally applies it."""
+    config = _config(base_config)
+    config["strategy"]["cross_sectional"]["rebalance_every_bars"] = 2
+    config["strategy"]["cross_sectional"]["max_hold_bars"] = 10  # keep time stop out of frame
+    strategy = CrossSectionalReversion(config, FakeGen(), _identity_features)
+    _feed_day(strategy, 1, DAY1)  # ranking {AAA, BBB}
+    _feed_day(strategy, 2, {"AAA": 90.0, "BBB": 80.0, "CCC": 95.0, "DDD": 10.0})
+    strategy.on_trade_update({"symbol": "BBB", "side": "buy", "qty": 7.0, "price": 80.0})
+    intents = _feed_day(strategy, 3, DAY1)  # boundary 2: FROZEN — no refresh
+    assert intents["CCC"] is None  # day-2 ranking not applied mid-period
+    assert intents["BBB"] is None  # held position not rotated out mid-period
+    _feed_day(strategy, 4, DAY1)  # boundary 3: refresh from day-3 ranking {AAA,BBB}
+    intents = _feed_day(strategy, 5, DAY1)
+    assert intents["BBB"] is None  # back in target after refresh -> still held
 
 
 def test_reset_clears_target_and_state(base_config: dict[str, Any]) -> None:

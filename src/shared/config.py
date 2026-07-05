@@ -115,6 +115,7 @@ _MEAN_REVERSION_KEYS: set[str] = {
 }
 _CROSS_SECTIONAL_KEYS: set[str] = {
     "top_n",
+    "rebalance_every_bars",
     "max_hold_bars",
     "zscore_clip",
     "sentiment_veto",

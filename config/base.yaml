@@ -61,6 +61,8 @@ strategy:
     sentiment_lookback_days: 3    # most recent news day within N days strictly before
   cross_sectional:                # rank-based reversal (src/strategies/xsec_reversion.py)
     top_n: 10                     # hold the N most oversold of the cross-section
+    rebalance_every_bars: 5       # weekly — Lehmann 1990 / Quantpedia / ML4T cadence;
+                                  # daily rotation measurably churned the edge away
     max_hold_bars: 10             # same time stop as the time-series family
     zscore_clip: 3.0              # signal normalization (ZScoreSignalGenerator)
     sentiment_veto: -0.3          # same a-priori veto — never grid-searched
