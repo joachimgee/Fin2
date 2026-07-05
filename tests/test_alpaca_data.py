@@ -183,6 +183,40 @@ async def test_multi_strict_raises_on_invalid_bar() -> None:
         await _client(recorder).fetch_bars_multi(["AAA"], START, END)
 
 
+# --- fetch_news (Benzinga headlines) ----------------------------------------------
+
+
+def _news_payload(*items: dict[str, Any], next_page_token: str | None = None) -> dict[str, Any]:
+    return {"news": list(items), "next_page_token": next_page_token}
+
+
+def _news_item(headline: str, created_at: str = "2016-01-04T14:30:00Z") -> dict[str, Any]:
+    return {"headline": headline, "created_at": created_at}
+
+
+async def test_news_maps_headline_and_timestamp() -> None:
+    recorder = _Recorder([httpx.Response(200, json=_news_payload(_news_item("Apple up")))])
+    news = await _client(recorder).fetch_news("AAPL", START, END)
+    assert news == [(datetime(2016, 1, 4, 14, 30, tzinfo=UTC), "Apple up")]
+    request = recorder.requests[0]
+    assert request.url.params["symbols"] == "AAPL"
+    assert request.url.params["include_content"] == "false"
+    assert request.url.params["sort"] == "asc"
+    assert "/v1beta1/news" in str(request.url)
+
+
+async def test_news_paginates() -> None:
+    recorder = _Recorder(
+        [
+            httpx.Response(200, json=_news_payload(_news_item("one"), next_page_token="t")),
+            httpx.Response(200, json=_news_payload(_news_item("two"))),
+        ]
+    )
+    news = await _client(recorder).fetch_news("AAPL", START, END)
+    assert [h for _, h in news] == ["one", "two"]
+    assert recorder.requests[1].url.params["page_token"] == "t"
+
+
 # --- fetch_active_symbols (trading API metadata) ----------------------------------
 
 

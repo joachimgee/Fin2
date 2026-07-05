@@ -68,7 +68,14 @@ _SCHEMA: dict[str, set[str]] = {
     },
     "universe_builder": {"top_n", "min_days", "batch_size"},
     "stream": {"reconnect_backoff_initial_s", "reconnect_backoff_cap_s"},
-    "llm": {"provider", "finbert_model", "model", "max_tokens", "cache_ttl_s"},
+    "llm": {
+        "provider",
+        "finbert_model",
+        "model",
+        "max_tokens",
+        "cache_ttl_s",
+        "max_headlines_per_day",
+    },
     "monitoring": {"log_level", "daily_report_time_et", "alert_timeout_s"},
 }
 _CIRCUIT_BREAKER_KEYS: set[str] = {"daily_loss_pct", "max_drawdown_pct", "consecutive_losses"}

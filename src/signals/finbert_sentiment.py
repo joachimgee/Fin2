@@ -31,6 +31,16 @@ Classifier = Callable[[str], list[dict[str, Any]]]
 _LABEL_SIGNS = {"positive": 1.0, "negative": -1.0, "neutral": 0.0}
 
 
+def signed_score(result: dict[str, Any]) -> float:
+    """One FinBERT output {'label','score'} -> signed confidence in [-1, 1].
+    Shared by the live provider and the offline batch scorer — one mapping."""
+    label = str(result["label"]).lower()
+    sign = _LABEL_SIGNS.get(label)
+    if sign is None:
+        raise ValueError(f"unknown FinBERT label: {label!r}")
+    return max(-1.0, min(1.0, sign * float(result["score"])))
+
+
 def load_finbert(model_name: str) -> Classifier:
     """Build the real HuggingFace pipeline. Composition-root only.
 
@@ -78,9 +88,4 @@ class FinBertSentiment:
         return value
 
     def _score(self, headline: str) -> float:
-        result = self._classifier(headline)[0]
-        label = str(result["label"]).lower()
-        sign = _LABEL_SIGNS.get(label)
-        if sign is None:
-            raise ValueError(f"unknown FinBERT label: {label!r}")
-        return max(-1.0, min(1.0, sign * float(result["score"])))
+        return signed_score(self._classifier(headline)[0])
