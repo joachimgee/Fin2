@@ -2,7 +2,11 @@
 
   daily_loss_pct:     P&L below -X% of start-of-day equity
   max_drawdown_pct:   equity below (1 - X%) of peak equity
-  consecutive_losses: N losing trades in a row
+  consecutive_losses: N consecutive losing DAYS (sum of realized P&L of the
+                      day < 0; days without closed trades don't count).
+                      Day-based, not fill-based: a rotating multi-position
+                      portfolio can realize 5 losing fills in ONE red day —
+                      that is the daily_loss breaker's job, not a streak.
 (thresholds from YAML config risk.circuit_breakers)
 
 When tripped: halt, log CRITICAL, dispatch the injected alert callback.
@@ -34,13 +38,17 @@ class CircuitBreaker:
         self._start_of_day_equity: float | None = None
         self._peak_equity: float | None = None
         self._loss_streak = 0
+        self._day_realized = 0.0
+        self._day_trade_count = 0
 
     @property
     def trading_halted(self) -> bool:
         return self._halted
 
     def start_of_day(self, equity: float) -> None:
-        """Record the session's opening equity. Never resets a tripped breaker."""
+        """Day boundary: settle the FINISHED day's realized P&L into the
+        losing-days streak, then open the new session. Never resets a trip."""
+        self._settle_day()
         self._start_of_day_equity = equity
         self._peak_equity = max(self._peak_equity or equity, equity)
 
@@ -59,18 +67,30 @@ class CircuitBreaker:
                 )
 
     def on_trade_closed(self, pnl: float) -> None:
-        if pnl >= 0:
-            self._loss_streak = 0
-            return
-        self._loss_streak += 1
-        if self._loss_streak >= self._max_consecutive_losses:
-            self._trip("consecutive_losses", {"loss_streak": float(self._loss_streak)})
+        """Accumulate the day's realized P&L; the streak is judged per DAY
+        at the next start_of_day() boundary."""
+        self._day_realized += pnl
+        self._day_trade_count += 1
 
     def reset_circuit_breaker(self) -> None:
         """The ONLY way back to trading. Called by a human decision, never code."""
         log.warning("circuit_breaker_manually_reset", extra={"was_halted": self._halted})
         self._halted = False
         self._loss_streak = 0
+        self._day_realized = 0.0
+        self._day_trade_count = 0
+
+    def _settle_day(self) -> None:
+        if self._day_trade_count == 0:
+            return  # a day without closed trades carries no streak information
+        if self._day_realized < 0.0:
+            self._loss_streak += 1
+            if self._loss_streak >= self._max_consecutive_losses:
+                self._trip("consecutive_losses", {"loss_streak": float(self._loss_streak)})
+        else:
+            self._loss_streak = 0
+        self._day_realized = 0.0
+        self._day_trade_count = 0
 
     def _trip(self, reason: str, values: dict[str, float]) -> None:
         if self._halted:

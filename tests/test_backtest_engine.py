@@ -62,6 +62,14 @@ async def test_slippage_and_commission_applied(base_config: dict[str, Any]) -> N
     assert results["total_commission"] == pytest.approx(20.0)  # 10 shares x $1, both legs
 
 
+async def test_on_new_day_called_once_per_trading_day(base_config: dict[str, Any]) -> None:
+    risk = PassThroughRisk()
+    engine, _ = _engine(frictionless(base_config), risk)
+    await engine.run()
+    assert len(risk.days_opened) == len(_PRICES)  # one boundary per unique day
+    assert risk.days_opened[0] == pytest.approx(10_000.0)  # opening equity
+
+
 async def test_win_loss_tallies_hand_computed(base_config: dict[str, Any]) -> None:
     """Round-trip 1: buy@96 sell@107 -> +110 (win). Round-trip 2: buy@98,
     sell signal at c106 but next open gaps to 92 -> (92-98)*10 = -60 (loss)."""

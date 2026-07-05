@@ -135,7 +135,8 @@ def test_validate_is_synchronous(base_config: dict[str, Any]) -> None:
 
 def test_on_fill_feeds_breaker_losses(base_config: dict[str, Any]) -> None:
     manager = _manager(base_config)
-    for _ in range(5):  # five losing round-trips -> consecutive_losses breaker
+    for _ in range(5):  # five losing round-trips on five DAYS -> breaker
         manager.on_fill({"symbol": "T", "side": "buy", "qty": 1, "price": 100.0})
         manager.on_fill({"symbol": "T", "side": "sell", "qty": 1, "price": 99.0})
+        manager.on_new_day(100_000.0)  # boundary settles the losing day
     assert not manager.validate(_intent()).approved

@@ -49,8 +49,12 @@ async def test_liskov_same_orders_backtest_vs_live_loop(base_config: dict[str, A
     )
     orders_b: list[dict[str, Any]] = []
     equity_b: list[float] = []
+    current_day = None
     for row in bars_frame(_PRICES).itertuples():
         bar = Bar("SPY", row.timestamp, row.open, row.high, row.low, row.close, int(row.volume))
+        if current_day != bar.timestamp:  # day boundary first — as the engine does
+            current_day = bar.timestamp
+            risk_b.on_new_day(broker_b.equity())
         for fill in broker_b.fill_at_open(bar):
             strategy_b.on_trade_update(fill)
             risk_b.on_fill(fill)

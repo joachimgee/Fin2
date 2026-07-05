@@ -113,8 +113,9 @@ def test_breaker_wired_to_alert_dispatch(
     base_config: dict[str, Any], tmp_path: Path, alerts: list[str]
 ) -> None:
     components = rp.build_components(base_config, tmp_path, None)
-    for _ in range(5):
-        components.breaker.on_trade_closed(-10.0)  # trip consecutive_losses
+    for _ in range(5):  # five consecutive losing DAYS trip the breaker
+        components.breaker.on_trade_closed(-10.0)
+        components.breaker.start_of_day(100_000.0)
     assert len(alerts) == 1
     assert "consecutive_losses" in alerts[0]
 
