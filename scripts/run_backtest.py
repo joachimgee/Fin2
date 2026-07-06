@@ -76,6 +76,30 @@ def build_sentiment_fn(sentiment_by_symbol: dict[str, pd.DataFrame], lookback_da
     return lookup
 
 
+def build_reversion_strategy(
+    config: dict[str, Any],
+    strategy_name: str,
+    features_fn: Any,
+    sentiment_by_symbol: dict[str, pd.DataFrame] | None,
+) -> AbstractStrategy:
+    """Construct a rule-based reversion strategy (single source of truth,
+    shared by the WFO runner and the bootstrap analysis script)."""
+    section = "cross_sectional" if strategy_name.startswith("xsec") else "mean_reversion"
+    cfg = config["strategy"][section]
+    sentiment_fn = None
+    if strategy_name.endswith("_sentiment"):
+        sentiment_fn = build_sentiment_fn(
+            sentiment_by_symbol or {}, int(cfg["sentiment_lookback_days"])
+        )
+    cls = CrossSectionalReversion if strategy_name.startswith("xsec") else MeanReversionZScore
+    return cls(
+        config,
+        ZScoreSignalGenerator(float(cfg["zscore_clip"])),
+        features_fn,
+        sentiment_fn=sentiment_fn,
+    )
+
+
 def make_window_runners(
     config: dict[str, Any],
     all_bars: pd.DataFrame,
@@ -117,20 +141,7 @@ def make_window_runners(
             return MomentumLightGBM(
                 config, LightGBMSignalGenerator(params["artifact_dir"]), features_fn
             )
-        section = "cross_sectional" if strategy_name.startswith("xsec") else "mean_reversion"
-        cfg = config["strategy"][section]
-        sentiment_fn = None
-        if strategy_name.endswith("_sentiment"):
-            sentiment_fn = build_sentiment_fn(
-                sentiment_by_symbol or {}, int(cfg["sentiment_lookback_days"])
-            )
-        cls = CrossSectionalReversion if strategy_name.startswith("xsec") else MeanReversionZScore
-        return cls(
-            config,
-            ZScoreSignalGenerator(float(cfg["zscore_clip"])),
-            features_fn,
-            sentiment_fn=sentiment_fn,
-        )
+        return build_reversion_strategy(config, strategy_name, features_fn, sentiment_by_symbol)
 
     def evaluate_window(days: pd.DataFrame, params: dict[str, Any]) -> dict[str, float]:
         run_bars, trade_start = bars_with_lead_in(days)

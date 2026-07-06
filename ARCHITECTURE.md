@@ -110,6 +110,18 @@ the official auction close. Full-market screening stays on Polygon (ADR-004).
 Implemented as raw REST (`src/data/alpaca_data.py`, httpx) — the alpaca-py
 SDK remains exclusive to execution/ per the dependency graph.
 
+### ADR-009 — A point Sharpe is not a decision: bootstrap its interval
+The WFO reports ONE OOS Sharpe per strategy, but "1.17 < 1.50" is only a
+verdict if 1.50 sits outside the estimate's sampling band. `backtest/bootstrap.py`
+resamples the strategy's realized daily returns and recomputes the Sharpe to
+produce a confidence interval and P(Sharpe ≥ gate). Method: STATIONARY
+bootstrap (Politis & Romano 1994), not the IID bootstrap Fin v1 used —
+IID resampling destroys volatility clustering and serial dependence, which
+falsely tightens the interval; geometric blocks preserve it. This does not
+change the gate (still the point Sharpe ≥ 1.5) — it tells us whether a
+near-miss is a real shortfall or noise, so "abandon the family" is a
+measured call, not a coin flip on one number.
+
 ## 5. Control gates (when code lands)
 
 | Gate | Where | Blocks |
