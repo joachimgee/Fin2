@@ -26,6 +26,7 @@ from pathlib import Path
 import pandas as pd
 from src.backtest.bootstrap import bootstrap_sharpe
 from src.backtest.engine import BacktestEngine, SimulatedBroker
+from src.backtest.vol_target import realized_annual_vol, vol_target_returns
 from src.data.storage import BarStorage
 from src.monitoring.logging_setup import setup_logging
 from src.risk.circuit_breaker import CircuitBreaker
@@ -72,6 +73,9 @@ def main() -> None:
     parser.add_argument("--universe", default=None)
     parser.add_argument("--n-resamples", type=int, default=5000)
     parser.add_argument("--mean-block", type=float, default=10.0)
+    parser.add_argument("--vol-target", action="store_true", help="apply vol targeting first")
+    parser.add_argument("--vol-window", type=int, default=20)
+    parser.add_argument("--max-leverage", type=float, default=3.0)
     args = parser.parse_args()
 
     if args.strategy == "momentum_lightgbm":
@@ -89,9 +93,22 @@ def main() -> None:
     ).sort_values("timestamp")
 
     returns = asyncio.run(realized_returns(config, args.strategy, bars))
+    ppy = int(config["backtest"]["periods_per_year"])
+    if args.vol_target:
+        base_vol = realized_annual_vol(returns, ppy)
+        returns = vol_target_returns(returns, ppy, args.vol_window, args.max_leverage)
+        log.info(
+            "vol_target_applied",
+            extra={
+                "base_annual_vol": round(base_vol, 4),
+                "targeted_annual_vol": round(realized_annual_vol(returns, ppy), 4),
+                "vol_window": args.vol_window,
+                "max_leverage": args.max_leverage,
+            },
+        )
     interval = bootstrap_sharpe(
         returns,
-        int(config["backtest"]["periods_per_year"]),
+        ppy,
         threshold=float(config["wfo"]["min_oos_sharpe"]),
         n_resamples=args.n_resamples,
         mean_block=args.mean_block,
