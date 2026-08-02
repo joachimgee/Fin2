@@ -47,6 +47,9 @@ class BarStorage:
     """
 
     def __init__(self, db_path: Path) -> None:
+        # data/ is fully gitignored, so a fresh clone lacks the directory —
+        # a sync on a new container must work out of the box
+        db_path.parent.mkdir(parents=True, exist_ok=True)
         self._con = duckdb.connect(str(db_path))
         self._con.execute(_CREATE_TABLE)
         self._con.execute(_CREATE_SENTIMENT_TABLE)
